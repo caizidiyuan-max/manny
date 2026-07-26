@@ -1,0 +1,786 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>給料残額</title>
+<style>
+  /* ===============================================
+     案5 ユニバーサルデザイン(経費記録アプリから流用)
+     正: 経理\docs\提案\デザイン案\案5-ユニバーサル.html のトークン。
+     色弱対応配色(青と橙が軸。赤と緑を並べない)。
+     すべての区別を「色+形(アイコン)+文字」の三重で符号化。
+     UD書体優先・基本17px・行間1.75・コントラスト7:1以上。
+     =============================================== */
+  :root {
+    color-scheme: light;
+    --bg: #FBFBF9;
+    --card: #FFFFFF;
+    --ink: #20242B;          /* 本文 15:1 */
+    --sub: #50565F;          /* 補助 7.3:1 */
+    --line: #C9CDD4;
+    --blue: #0058A3;         /* 主ボタン・済(白文字と7.6:1) */
+    --blue-bg: #E5F0FA;
+    --orange: #8A4B00;       /* これから(7.1:1) */
+    --orange-bg: #FCEBD4;
+    --warn: #9A3412;         /* 警告・破壊的操作(白文字と7:1) */
+    --warn-bg: #FFF4E5;
+    --font-ud: "BIZ UDGothic", "UD デジタル 教科書体 N-R", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: var(--bg); }
+  body {
+    font-family: var(--font-ud);
+    color: var(--ink);
+    font-size: 17px;
+    line-height: 1.75;
+    -webkit-text-size-adjust: 100%;
+  }
+  .wrap { max-width: 448px; margin: 0 auto; padding: 16px 14px 120px; }
+  button { font-family: var(--font-ud); cursor: pointer; }
+  input, textarea { font-family: var(--font-ud); }
+
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; gap: 8px; }
+  .header h1 { font-size: 25px; font-weight: 800; }
+  .chip-btn {
+    font-size: 15px; font-weight: 700; color: var(--ink); background: var(--card);
+    border: 1.5px solid var(--ink); border-radius: 10px; padding: 8px 10px;
+    min-height: 46px;
+  }
+
+  /* 保存バー(経費記録と同じ操作感: 手動保存ボタン+保存状態の常時表示) */
+  .save-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 12px; }
+  .save-btn {
+    flex-shrink: 0; font-size: 16px; font-weight: 800; color: #FFF; background: var(--ink);
+    border: none; border-radius: 10px; padding: 8px 20px; min-height: 46px;
+    transition: transform .06s ease;
+  }
+  .save-btn:active { transform: translateY(2px) scale(0.96); }
+  .save-status { font-size: 14px; line-height: 1.5; min-width: 0; }
+  .save-done { font-weight: 800; color: var(--blue); }
+  .save-dirty { font-weight: 800; color: var(--warn); }
+
+  /* 警告アイコン(丸地に白の「!」。色が見えなくても形と文字で分かる) */
+  .warn-ic {
+    flex-shrink: 0; width: 28px; height: 28px; border-radius: 50%;
+    background: var(--warn); color: #FFF; font-size: 17px; font-weight: 800;
+    display: inline-flex; align-items: center; justify-content: center; line-height: 1;
+  }
+
+  /* 期間バー */
+  .period-bar {
+    background: var(--blue-bg); border: 1.5px solid var(--blue); border-radius: 12px;
+    padding: 8px 14px; margin-bottom: 12px; font-size: 15px; font-weight: 800;
+  }
+
+  /* 残額カード(アプリの顔。いちばん大きく) */
+  .zangaku-card {
+    background: var(--card); border: 2px solid var(--ink); border-radius: 14px;
+    padding: 14px 18px; margin-bottom: 12px;
+  }
+  .zangaku-card .z-label { font-size: 15px; font-weight: 800; color: var(--sub); }
+  .zangaku-card .z-amount { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3; overflow-wrap: anywhere; }
+  .zangaku-card .z-amount.minus { color: var(--warn); }
+  .zangaku-card .z-detail { font-size: 14px; color: var(--sub); line-height: 1.7; margin-top: 4px; }
+  .zangaku-card .z-minus-note {
+    display: flex; align-items: center; gap: 8px; margin-top: 8px;
+    background: var(--warn-bg); border: 1.5px solid var(--warn); border-radius: 10px;
+    padding: 8px 10px; font-size: 15px; font-weight: 800;
+  }
+
+  /* 給料欄 */
+  .salary-row {
+    background: var(--card); border: 1.5px solid var(--line); border-radius: 12px;
+    padding: 10px 14px; margin-bottom: 12px;
+    display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
+  }
+  .salary-row .s-label { font-size: 15px; font-weight: 800; }
+  .salary-row .s-amount { font-size: 20px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .salary-edit { display: flex; gap: 6px; align-items: center; width: 100%; margin-top: 6px; }
+  .salary-edit input {
+    flex: 1; min-width: 0; font-size: 18px; padding: 8px 10px;
+    border: 1.5px solid var(--line); border-radius: 10px; text-align: right;
+  }
+
+  /* お知らせ(警告=warn系・案内=blue系。色+枠+アイコン+文字の三重) */
+  .notice { font-size: 15px; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; line-height: 1.7; background: var(--card); border: 1.5px solid var(--line); }
+  .notice-warn { background: var(--warn-bg); border: 1.5px solid var(--warn); }
+  .notice-info { background: var(--blue-bg); border: 1.5px solid var(--blue); }
+  .notice .n-head { display: flex; align-items: flex-start; gap: 8px; }
+  .notice .n-head .warn-ic { margin-top: 5px; }
+
+  /* ボタン */
+  .btn { display: block; width: 100%; border-radius: 12px; font-weight: 800; letter-spacing: 0.04em; margin-bottom: 10px; }
+  .btn:active { opacity: 0.85; }
+  .btn-primary { background: var(--blue); color: #FFF; border: none; font-size: 18px; padding: 15px; min-height: 56px; }
+  .btn-outline { background: var(--card); color: var(--blue); border: 2px solid var(--blue); font-size: 16px; padding: 13px; min-height: 52px; }
+  .btn-warn { background: var(--warn); color: #FFF; border: none; font-size: 16px; padding: 13px; min-height: 52px; }
+  .btn-ghost { background: var(--card); color: var(--ink); border: 1.5px solid var(--line); font-size: 16px; padding: 13px; min-height: 52px; }
+  .entry-btns { display: flex; gap: 8px; }
+  .entry-btns > .btn { min-width: 0; }
+
+  /* 一覧 */
+  .list-head { font-size: 15px; font-weight: 800; margin: 14px 0 6px; }
+  .pay-row {
+    width: 100%; text-align: left; background: var(--card); border: 1.5px solid var(--line);
+    border-radius: 12px; padding: 10px 12px; margin-bottom: 8px;
+    display: flex; align-items: center; gap: 10px; min-height: 56px;
+  }
+  .pay-row:active { opacity: 0.85; }
+  .pay-badge {
+    flex-shrink: 0; font-size: 13px; font-weight: 800; border-radius: 8px; padding: 2px 8px;
+    border: 1.5px solid;
+  }
+  .badge-done { color: var(--blue); border-color: var(--blue); background: var(--blue-bg); }
+  .badge-todo { color: var(--orange); border-color: var(--orange); background: var(--orange-bg); }
+  .pay-main { flex: 1; min-width: 0; }
+  .pay-date { font-size: 14px; font-weight: 800; color: var(--sub); }
+  .pay-card-name { font-size: 16px; font-weight: 800; overflow-wrap: anywhere; }
+  .pay-memo { font-size: 13px; color: var(--sub); overflow-wrap: anywhere; }
+  .pay-amount { flex-shrink: 0; font-size: 18px; font-weight: 800; font-variant-numeric: tabular-nums; }
+  .empty-note { font-size: 15px; color: var(--sub); background: var(--card); border: 1.5px dashed var(--line); border-radius: 12px; padding: 14px; }
+
+  /* パネル(全画面かぶせ) */
+  .overlay {
+    position: fixed; inset: 0; background: var(--bg); z-index: 10;
+    overflow-y: auto; -webkit-overflow-scrolling: touch;
+  }
+  .overlay .wrap { padding-top: 16px; }
+  .overlay h2 { font-size: 21px; font-weight: 800; margin-bottom: 10px; }
+  .overlay h3 { font-size: 17px; font-weight: 800; margin: 16px 0 6px; }
+  .panel { background: var(--card); border: 1.5px solid var(--line); border-radius: 14px; padding: 14px; margin-bottom: 12px; }
+  .panel .hint { font-size: 14px; color: var(--sub); font-weight: 700; line-height: 1.7; margin-bottom: 8px; }
+  textarea {
+    width: 100%; font-family: ui-monospace, monospace; font-size: 15px;
+    border: 1.5px solid var(--line); border-radius: 10px; padding: 10px; min-height: 120px;
+  }
+  .field { margin-bottom: 10px; }
+  .field label { display: block; font-size: 14px; font-weight: 800; margin-bottom: 3px; }
+  .field input {
+    width: 100%; font-size: 17px; padding: 10px; border: 1.5px solid var(--line); border-radius: 10px;
+  }
+  .preview-row {
+    display: flex; align-items: center; gap: 8px; font-size: 15px;
+    border-bottom: 1px solid var(--line); padding: 6px 2px; font-variant-numeric: tabular-nums;
+  }
+  .preview-row .p-flag { font-size: 13px; font-weight: 800; color: var(--warn); }
+  .bad-row { font-size: 14px; background: var(--warn-bg); border-radius: 8px; padding: 6px 8px; margin-top: 6px; line-height: 1.6; overflow-wrap: anywhere; }
+  .bad-row .b-reason { font-weight: 800; color: var(--warn); }
+  .sum-line { font-size: 16px; font-weight: 800; margin: 10px 0; }
+  code { font-family: ui-monospace, monospace; font-size: 15px; background: var(--blue-bg); border-radius: 6px; padding: 1px 5px; overflow-wrap: anywhere; }
+  .setting-text { font-size: 15px; line-height: 1.8; }
+  .setting-text p { margin-bottom: 8px; }
+</style>
+</head>
+<body>
+<div class="wrap" id="main-screen">
+  <div class="header">
+    <h1>給料残額</h1>
+    <button class="chip-btn" id="btn-settings" type="button">⚙ 設定・使い方</button>
+  </div>
+
+  <div class="save-bar">
+    <button class="save-btn" id="btn-save" type="button">保存</button>
+    <div class="save-status" id="save-status"></div>
+  </div>
+
+  <div id="load-warning"></div>
+
+  <div class="period-bar" id="period-bar"></div>
+
+  <div class="zangaku-card" id="zangaku-card"></div>
+
+  <div class="salary-row" id="salary-row"></div>
+
+  <div class="entry-btns">
+    <button class="btn btn-primary" id="btn-import" type="button">📋 貼り付けて取り込む</button>
+    <button class="btn btn-outline" id="btn-manual" type="button">✏ 1件手入力</button>
+  </div>
+
+  <div class="list-head" id="list-head"></div>
+  <div id="pay-list"></div>
+</div>
+
+<!-- 取り込みパネル -->
+<div class="overlay" id="import-overlay" hidden>
+  <div class="wrap">
+    <h2>貼り付けて取り込む</h2>
+    <div class="panel">
+      <div class="hint">カードアプリの「支払予定」画面のスクショを Claude に送ると、下の4列の形で返ってきます。それをここに貼り付けてください。<br>
+      <code>引き落とし日,カード名,金額,メモ</code><br>
+      例: <code>2026-08-10,楽天,45210,7月分</code></div>
+      <textarea id="import-text" placeholder="2026-08-10,楽天,45210,7月分&#10;2026-08-27,三井住友,32000,7月分"></textarea>
+      <button class="btn btn-primary" id="btn-parse" type="button" style="margin-top:10px">内容を確認する</button>
+    </div>
+    <div id="import-preview"></div>
+    <button class="btn btn-ghost" id="btn-import-close" type="button">閉じる</button>
+  </div>
+</div>
+
+<!-- 編集・手入力パネル -->
+<div class="overlay" id="edit-overlay" hidden>
+  <div class="wrap">
+    <h2 id="edit-title">1件手入力</h2>
+    <div class="panel">
+      <div class="field">
+        <label for="edit-date">引き落とし日</label>
+        <input id="edit-date" type="date">
+      </div>
+      <div class="field">
+        <label for="edit-card">カード名(ニックネームだけ。カード番号は入れない)</label>
+        <input id="edit-card" type="text" list="card-list" placeholder="例: 楽天">
+        <datalist id="card-list"></datalist>
+      </div>
+      <div class="field">
+        <label for="edit-amount">金額(円・整数)</label>
+        <input id="edit-amount" type="text" inputmode="numeric" placeholder="例: 45210">
+      </div>
+      <div class="field">
+        <label for="edit-memo">メモ(なくてもOK)</label>
+        <input id="edit-memo" type="text" placeholder="例: 7月分">
+      </div>
+      <div id="edit-error"></div>
+      <button class="btn btn-primary" id="btn-edit-ok" type="button">この内容で決定</button>
+      <div id="edit-delete-area"></div>
+      <button class="btn btn-ghost" id="btn-edit-cancel" type="button">やめる(閉じる)</button>
+    </div>
+  </div>
+</div>
+
+<!-- 設定・使い方 -->
+<div class="overlay" id="settings-overlay" hidden>
+  <div class="wrap">
+    <h2>設定・使い方</h2>
+
+    <h3>給料(手取り)の変更</h3>
+    <div class="panel">
+      <div class="salary-edit" style="margin-top:0">
+        <input id="settings-salary" type="text" inputmode="numeric" placeholder="例: 250000">
+        <button class="chip-btn" id="btn-salary-save" type="button">決定</button>
+      </div>
+      <div id="salary-error"></div>
+      <div class="hint" style="margin-top:6px">一度入れれば翌月以降も引き継がれます。変わった月だけ直せばOK。</div>
+    </div>
+
+    <h3>使い方(毎月のルーチン)</h3>
+    <div class="panel setting-text">
+      <p>1. 25日ごろ、カードアプリの「支払予定」画面をスクショして Claude に送る(2〜3枚まとめてOK)</p>
+      <p>2. <code>引き落とし日,カード名,金額,メモ</code> の4列テキストが返ってくる</p>
+      <p>3. このアプリの「📋 貼り付けて取り込む」に貼る → 確認 → 残額が出る</p>
+      <p>期間は「毎月25日〜翌月24日」で自動的に区切られます(給料日=25日)。</p>
+    </div>
+
+    <h3>データの控え(バックアップ)</h3>
+    <div class="panel">
+      <div class="hint">データはこの端末のブラウザの中だけに保存されます。機種変更やデータ消去に備えて、ときどき下の控えをコピーしてメモアプリ等に貼っておいてください。</div>
+      <button class="btn btn-outline" id="btn-export" type="button">📄 控えを出す(エクスポート)</button>
+      <div id="export-area"></div>
+      <button class="btn btn-outline" id="btn-import-json" type="button">♻ 控えから戻す(インポート)</button>
+      <div id="import-json-area"></div>
+    </div>
+
+    <h3>安心してお使いいただくために</h3>
+    <div class="panel setting-text">
+      <p>・このアプリには<strong>カード番号・有効期限・セキュリティコードを入れる欄がそもそもありません</strong>。カード名は「楽天」のようなニックネームだけです。</p>
+      <p>・データは端末の外に送られません(通信機能がありません)。</p>
+      <p>・AI がカード会社のサイトにログインしたり、パスワードを扱うことはありません。</p>
+    </div>
+
+    <button class="btn btn-ghost" id="btn-settings-close" type="button">閉じる</button>
+  </div>
+</div>
+
+<script>
+"use strict";
+/* =========================================================
+   給料残額アプリ
+   - データは localStorage(キー: kyuryo-zangaku-v1)のみ。外部通信なし
+   - 金額はすべて整数の円。計算は足し算・引き算・日付比較のみ
+   - 期間は毎月25日固定区切り(計画.md §5)
+   ========================================================= */
+
+var STORE_KEY = "kyuryo-zangaku-v1";
+var PAYDAY = 25; // 給料日(毎月25日固定)
+var MAX_AMOUNT = 99999999; // 金額の業務上の上限: 1億円未満。入口(取り込み・手入力・給料)と読み込み(sanitizePayment)で基準をそろえる
+
+// ---------- 状態 ----------
+var S = { salary: 0, payments: [] };
+var dirty = false;
+var lastSavedAt = "";
+var loadWarning = "";
+var editingId = null;      // 編集パネル: null=新規手入力
+var deleteArmed = false;   // 削除の二段階確認
+var pendingRows = null;    // 取り込みプレビュー中の行
+
+// ---------- 共通ユーティリティ ----------
+function esc(s) {
+  return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) {
+    return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+  });
+}
+function pad2(n) { return (n < 10 ? "0" : "") + n; }
+function todayStr() {
+  var d = new Date();
+  return d.getFullYear() + "-" + pad2(d.getMonth() + 1) + "-" + pad2(d.getDate());
+}
+function yen(n) {
+  var neg = n < 0;
+  var s = String(Math.abs(n)).replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  return (neg ? "−¥" : "¥") + s;
+}
+function newId() { return "p_" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8); }
+
+// 日付文字列 YYYY-MM-DD が実在する日か(2026-13-40 などを弾く)
+function isRealDate(s) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return false;
+  var y = Number(s.slice(0, 4)), m = Number(s.slice(5, 7)), d = Number(s.slice(8, 10));
+  if (m < 1 || m > 12 || d < 1) return false;
+  var last = new Date(y, m, 0).getDate(); // その月の末日
+  return d <= last;
+}
+// 取り込み時の日付をゆるく受けて YYYY-MM-DD に正規化(だめなら null)
+// 全角→半角、区切りの / . を - に、1桁の月日はゼロ埋め
+function normalizeDate(v) {
+  var s = String(v == null ? "" : v).normalize("NFKC").trim().replace(/[\/\.]/g, "-");
+  var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return null;
+  var out = m[1] + "-" + pad2(Number(m[2])) + "-" + pad2(Number(m[3]));
+  return isRealDate(out) ? out : null;
+}
+// 取り込みの金額: 1以上・1億円未満の整数のみ(カンマは列区切りなのでここには来ない前提。
+// 小数・マイナス・0・文字混じり・桁あふれ・1億円以上は NaN)
+function parseAmountStrict(v) {
+  var s = String(v == null ? "" : v).normalize("NFKC").trim().replace(/[¥￥\s円]/g, "");
+  if (!/^\d+$/.test(s)) return NaN;
+  var n = Number(s);
+  if (!Number.isSafeInteger(n) || n < 1 || n > MAX_AMOUNT) return NaN;
+  return n;
+}
+// 給料の手入力: 0以上・1億円未満の整数(こちらはカンマ・¥・円を許して剥がす)
+function parseSalary(v) {
+  var s = String(v == null ? "" : v).normalize("NFKC").trim().replace(/[¥￥,\s円]/g, "");
+  if (!/^\d+$/.test(s)) return NaN;
+  var n = Number(s);
+  if (!Number.isSafeInteger(n) || n > MAX_AMOUNT) return NaN;
+  return n;
+}
+// メモ: カンマは列区切りと衝突するため読点に置換(計画.md §3 の約束)
+function cleanMemo(v) {
+  return String(v == null ? "" : v).replace(/,/g, "、").trim().slice(0, 200);
+}
+function cleanCard(v) {
+  return String(v == null ? "" : v).replace(/,/g, "、").trim().slice(0, 40);
+}
+
+// ---------- 期間計算(計画.md §5。区切りは毎月25日固定) ----------
+function currentPeriod() {
+  var t = todayStr();
+  var y = Number(t.slice(0, 4)), m = Number(t.slice(5, 7)), d = Number(t.slice(8, 10));
+  var sy, sm; // 期間開始の年月
+  if (d >= PAYDAY) { sy = y; sm = m; }
+  else { sm = m - 1; sy = y; if (sm === 0) { sm = 12; sy = y - 1; } }
+  var ey = sy, em = sm + 1;
+  if (em === 13) { em = 1; ey = sy + 1; }
+  return {
+    start: sy + "-" + pad2(sm) + "-" + pad2(PAYDAY),
+    end: ey + "-" + pad2(em) + "-" + pad2(PAYDAY - 1),
+    label: sy + "年" + sm + "/" + PAYDAY + " 〜 " + (ey !== sy ? ey + "年" : "") + em + "/" + (PAYDAY - 1)
+  };
+}
+function inPeriod(dateStr, period) {
+  return period.start <= dateStr && dateStr <= period.end; // 文字列比較で日付順が保てる形式
+}
+
+// ---------- 保存と読み込み ----------
+function sanitizePayment(p) {
+  if (!p || typeof p !== "object") return null;
+  var date = typeof p.date === "string" && isRealDate(p.date) ? p.date : null;
+  var card = cleanCard(p.card);
+  var amount = (typeof p.amount === "number" && Number.isSafeInteger(p.amount) && p.amount >= 1 && p.amount <= MAX_AMOUNT) ? p.amount : null;
+  if (!date || !card || amount === null) return null;
+  return {
+    id: (typeof p.id === "string" && p.id) ? p.id : newId(),
+    date: date, card: card, amount: amount, memo: cleanMemo(p.memo)
+  };
+}
+// 生データ→状態。不正な行は数えて捨てる(画面は必ず起動させる)
+function buildState(raw) {
+  var out = { salary: 0, payments: [] }, skipped = 0;
+  if (raw && typeof raw === "object") {
+    if (typeof raw.salary === "number" && Number.isSafeInteger(raw.salary) && raw.salary >= 0 && raw.salary <= MAX_AMOUNT) out.salary = raw.salary;
+    if (Array.isArray(raw.payments)) {
+      for (var i = 0; i < raw.payments.length; i++) {
+        var p = sanitizePayment(raw.payments[i]);
+        if (p) out.payments.push(p); else skipped++;
+      }
+    }
+  }
+  return { state: out, skipped: skipped };
+}
+function load() {
+  var text = null;
+  try { text = localStorage.getItem(STORE_KEY); } catch (e) { loadWarning = "この環境では保存機能(localStorage)が使えません。控え(JSON)での運用をおすすめします。"; return; }
+  if (text === null) return; // 初回起動
+  var raw = null;
+  try { raw = JSON.parse(text); } catch (e) {
+    loadWarning = "保存データが壊れていて読めなかったため、空の状態で起動しました。設定・使い方の「控えから戻す」で復元できます。(このまま保存すると壊れたデータは上書きされます)";
+    return;
+  }
+  var r = buildState(raw);
+  S = r.state;
+  if (r.skipped > 0) loadWarning = "保存データのうち " + r.skipped + " 件は形式が不正だったため読み飛ばしました。";
+}
+function persist() {
+  try {
+    localStorage.setItem(STORE_KEY, JSON.stringify({ salary: S.salary, payments: S.payments }));
+  } catch (e) {
+    alert("保存に失敗しました。ブラウザの保存領域が使えない状態です。控え(JSON)をコピーして退避してください。");
+    return;
+  }
+  dirty = false;
+  if (loadWarning) { loadWarning = ""; renderLoadWarning(); } // 保存成功=保存前の状態についての警告は古い情報になるので消す
+  var d = new Date();
+  lastSavedAt = pad2(d.getHours()) + ":" + pad2(d.getMinutes());
+  renderSaveBar();
+}
+function markDirty() { dirty = true; renderSaveBar(); }
+
+// ---------- 描画 ----------
+function $(id) { return document.getElementById(id); }
+
+function renderSaveBar() {
+  $("save-status").innerHTML = dirty
+    ? '<span class="save-dirty">● 未保存の変更があります</span>'
+    : '<span class="save-done">✓ 保存済み' + (lastSavedAt ? "(" + lastSavedAt + ")" : "") + "</span>";
+}
+function renderLoadWarning() {
+  $("load-warning").innerHTML = loadWarning
+    ? '<div class="notice notice-warn"><div class="n-head"><span class="warn-ic">!</span><span>' + esc(loadWarning) + "</span></div></div>"
+    : "";
+}
+function periodPayments(period) {
+  return S.payments.filter(function (p) { return inPeriod(p.date, period); })
+    .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
+}
+function render() {
+  var period = currentPeriod();
+  var today = todayStr();
+  var rows = periodPayments(period);
+  var total = 0, paid = 0;
+  rows.forEach(function (p) {
+    total += p.amount;
+    if (p.date < today) paid += p.amount; // 今日より前=済(今日当日は「これから」)
+  });
+  var upcoming = total - paid;
+  var zan = S.salary - total;
+
+  $("period-bar").textContent = "今回の給料期間 " + period.label;
+
+  var html = '<div class="z-label">全部払ったら残る</div>'
+    + '<div class="z-amount' + (zan < 0 ? " minus" : "") + '">' + yen(zan) + "</div>"
+    + '<div class="z-detail">給料 ' + yen(S.salary) + " − 引き落とし合計 " + yen(total) + "<br>"
+    + "うち ✓支払済み " + yen(paid) + " / →これから " + yen(upcoming) + "</div>";
+  if (zan < 0) {
+    html += '<div class="z-minus-note"><span class="warn-ic">!</span><span>' + yen(-zan) + " 足りません(給料より引き落としが多い状態です)</span></div>";
+  }
+  $("zangaku-card").innerHTML = html;
+
+  $("salary-row").innerHTML =
+    '<span class="s-label">給料(手取り)</span>'
+    + '<span class="s-amount">' + yen(S.salary) + "</span>"
+    + '<button class="chip-btn" id="btn-salary-edit" type="button">変更</button>';
+  $("btn-salary-edit").onclick = function () { openSettings(true); };
+
+  $("list-head").textContent = "この期間の引き落とし(" + rows.length + "件)";
+  if (rows.length === 0) {
+    $("pay-list").innerHTML = '<div class="empty-note">まだ引き落としが入っていません。カードアプリの支払予定スクショを Claude に送って、返ってきた4列テキストを「📋 貼り付けて取り込む」に貼ってください。</div>';
+  } else {
+    $("pay-list").innerHTML = rows.map(function (p) {
+      var done = p.date < today;
+      return '<button class="pay-row" type="button" data-id="' + esc(p.id) + '">'
+        + '<span class="pay-badge ' + (done ? "badge-done" : "badge-todo") + '">' + (done ? "✓済" : "→これから") + "</span>"
+        + '<span class="pay-main"><span class="pay-date">' + esc(p.date) + '</span><br>'
+        + '<span class="pay-card-name">' + esc(p.card) + "</span>"
+        + (p.memo ? '<br><span class="pay-memo">' + esc(p.memo) + "</span>" : "")
+        + "</span>"
+        + '<span class="pay-amount">' + yen(p.amount) + "</span>"
+        + "</button>";
+    }).join("");
+    Array.prototype.forEach.call($("pay-list").querySelectorAll(".pay-row"), function (el) {
+      el.onclick = function () { openEdit(el.getAttribute("data-id")); };
+    });
+  }
+  renderSaveBar();
+  renderLoadWarning();
+}
+
+// ---------- 取り込み(4列パーサ) ----------
+// 戻り値: { ok: [{date,card,amount,memo,dup,outside,suspect}], bad: [{line,reason}] }
+function parseImportText(text) {
+  var period = currentPeriod();
+  var ok = [], bad = [];
+  var seen = {}; // 貼り付け内の重複検出用
+  var lines = String(text || "").split(/\r?\n/);
+  for (var i = 0; i < lines.length; i++) {
+    var line = lines[i].normalize("NFKC").trim();
+    if (line === "" || /^`+$/.test(line)) continue;           // 空行・コードブロック記号は無視
+    if (/^引き落とし日/.test(line)) continue;                  // 見出し行は無視
+    var cols = line.split(",");
+    if (cols.length === 3) cols.push("");                      // メモ省略は許す
+    if (cols.length !== 4) {
+      bad.push({ line: lines[i], reason: "列が4つではありません(" + cols.length + "列)。金額にカンマ(45,210 など)が入っていませんか?" });
+      continue;
+    }
+    var date = normalizeDate(cols[0]);
+    if (!date) { bad.push({ line: lines[i], reason: "引き落とし日が「YYYY-MM-DD」の実在する日付として読めません。" }); continue; }
+    var card = cleanCard(cols[1]);
+    if (!card) { bad.push({ line: lines[i], reason: "カード名が空です。" }); continue; }
+    var amount = parseAmountStrict(cols[2]);
+    if (isNaN(amount)) { bad.push({ line: lines[i], reason: "金額が「1〜99,999,999(1億円未満)の整数の円」として読めません(小数・マイナス・0・文字・1億円以上は不可)。" }); continue; }
+    var memo = cleanMemo(cols[3]);
+
+    var key = date + "|" + card + "|" + amount;
+    var dupSaved = S.payments.some(function (p) { return p.date === date && p.card === card && p.amount === amount; });
+    var dupBatch = !!seen[key];
+    seen[key] = true;
+    ok.push({
+      date: date, card: card, amount: amount, memo: memo,
+      dup: dupSaved || dupBatch,
+      outside: !inPeriod(date, period),
+      suspect: /^\d+$/.test(memo) && memo !== "" // メモが数字だけ→金額のカンマ割れの疑い
+    });
+  }
+  return { ok: ok, bad: bad };
+}
+
+function renderImportPreview() {
+  var area = $("import-preview");
+  if (!pendingRows) { area.innerHTML = ""; return; }
+  var ok = pendingRows.ok, bad = pendingRows.bad;
+  var html = "";
+
+  if (bad.length > 0) {
+    html += '<div class="notice notice-warn"><div class="n-head"><span class="warn-ic">!</span><span>'
+      + bad.length + "行は取り込めませんでした(下に理由を表示。黙って捨てていません)</span></div>";
+    bad.forEach(function (b) {
+      html += '<div class="bad-row"><code>' + esc(b.line) + '</code><br><span class="b-reason">理由: ' + esc(b.reason) + "</span></div>";
+    });
+    html += "</div>";
+  }
+
+  if (ok.length === 0) {
+    html += '<div class="notice notice-info">取り込める行がありませんでした。形式は <code>引き落とし日,カード名,金額,メモ</code> の4列です。</div>';
+    area.innerHTML = html;
+    return;
+  }
+
+  var total = 0, dupCount = 0, outCount = 0, suspectCount = 0;
+  ok.forEach(function (r) { total += r.amount; if (r.dup) dupCount++; if (r.outside) outCount++; if (r.suspect) suspectCount++; });
+
+  html += '<div class="panel">';
+  html += '<div class="sum-line">' + ok.length + "件・合計 " + yen(total) + " を取り込みます</div>";
+  ok.forEach(function (r) {
+    html += '<div class="preview-row"><span style="flex:1;min-width:0">' + esc(r.date) + " " + esc(r.card)
+      + (r.memo ? ' <span style="color:var(--sub);font-size:13px">' + esc(r.memo) + "</span>" : "") + "</span>"
+      + "<span>" + yen(r.amount) + "</span>"
+      + (r.dup ? '<span class="p-flag">⚠重複かも</span>' : "")
+      + (r.outside ? '<span class="p-flag">⏭期間外</span>' : "")
+      + "</div>";
+  });
+  if (dupCount > 0) {
+    html += '<div class="notice notice-warn" style="margin-top:10px"><div class="n-head"><span class="warn-ic">!</span><span>'
+      + dupCount + "件は同じ「日付+カード名+金額」がすでにあります。同じスクショを2回貼っていませんか?</span></div></div>";
+  }
+  if (outCount > 0) {
+    html += '<div class="notice notice-info" style="margin-top:10px">⏭ の ' + outCount + "件は今回の期間(" + esc(currentPeriod().label) + ")の外です。保存はされ、その期間になると表示されます。</div>";
+  }
+  if (suspectCount > 0) {
+    html += '<div class="notice notice-warn" style="margin-top:10px"><div class="n-head"><span class="warn-ic">!</span><span>メモが数字だけの行があります。金額のカンマ(45,210 など)で列がずれていないか、金額とメモを確認してください。</span></div></div>';
+  }
+  if (dupCount > 0) {
+    html += '<button class="btn btn-primary" id="btn-import-skip-dup" type="button">重複らしき行を除いて取り込む(' + (ok.length - dupCount) + "件)</button>";
+    html += '<button class="btn btn-warn" id="btn-import-all" type="button">重複も含めて全部取り込む(' + ok.length + "件)</button>";
+  } else {
+    html += '<button class="btn btn-primary" id="btn-import-all" type="button">取り込む(' + ok.length + "件)</button>";
+  }
+  html += "</div>";
+  area.innerHTML = html;
+
+  var doImport = function (skipDup) {
+    var added = 0;
+    pendingRows.ok.forEach(function (r) {
+      if (skipDup && r.dup) return;
+      S.payments.push({ id: newId(), date: r.date, card: r.card, amount: r.amount, memo: r.memo });
+      added++;
+    });
+    if (added > 0) {
+      markDirty();
+      persist(); // 取り込みは操作が重いので即保存(保存バーにも反映される)
+    }
+    pendingRows = null;
+    $("import-text").value = "";
+    $("import-overlay").hidden = true;
+    render();
+    if (added > 0) {
+      $("load-warning").innerHTML = '<div class="notice notice-info">✓ ' + added + "件を取り込みました。</div>" + $("load-warning").innerHTML;
+    } else {
+      $("load-warning").innerHTML = '<div class="notice notice-info">取り込んだ行はありません(すべて重複のため除きました)。データは変わっていません。</div>' + $("load-warning").innerHTML;
+    }
+  };
+  var allBtn = $("btn-import-all");
+  if (allBtn) allBtn.onclick = function () { doImport(false); };
+  var skipBtn = $("btn-import-skip-dup");
+  if (skipBtn) skipBtn.onclick = function () { doImport(true); };
+}
+
+// ---------- 編集・手入力 ----------
+function cardCandidates() {
+  var seen = {}, out = [];
+  S.payments.forEach(function (p) { if (!seen[p.card]) { seen[p.card] = true; out.push(p.card); } });
+  return out;
+}
+function openEdit(id) {
+  editingId = id || null;
+  deleteArmed = false;
+  var p = id ? S.payments.find(function (x) { return x.id === id; }) : null;
+  $("edit-title").textContent = p ? "引き落としの修正" : "1件手入力";
+  $("edit-date").value = p ? p.date : "";
+  $("edit-card").value = p ? p.card : "";
+  $("edit-amount").value = p ? String(p.amount) : "";
+  $("edit-memo").value = p ? p.memo : "";
+  $("edit-error").innerHTML = "";
+  $("card-list").innerHTML = cardCandidates().map(function (c) { return '<option value="' + esc(c) + '">'; }).join("");
+  renderDeleteArea();
+  $("edit-overlay").hidden = false;
+}
+function renderDeleteArea() {
+  var area = $("edit-delete-area");
+  if (!editingId) { area.innerHTML = ""; return; }
+  area.innerHTML = deleteArmed
+    ? '<button class="btn btn-warn" id="btn-delete" type="button">本当に削除する(戻せません)</button>'
+    : '<button class="btn btn-ghost" id="btn-delete" type="button">🗑 この1件を削除…</button>';
+  $("btn-delete").onclick = function () {
+    if (!deleteArmed) { deleteArmed = true; renderDeleteArea(); return; }
+    S.payments = S.payments.filter(function (x) { return x.id !== editingId; });
+    markDirty(); persist();
+    $("edit-overlay").hidden = true;
+    render();
+  };
+}
+function saveEdit() {
+  var date = normalizeDate($("edit-date").value);
+  var card = cleanCard($("edit-card").value);
+  var amount = parseAmountStrict($("edit-amount").value.replace(/,/g, "")); // 手入力はカンマを許して剥がす
+  var memo = cleanMemo($("edit-memo").value);
+  var errs = [];
+  if (!date) errs.push("引き落とし日を選んでください。");
+  if (!card) errs.push("カード名を入れてください(ニックネームだけでOK)。");
+  if (isNaN(amount)) errs.push("金額は1〜99,999,999(1億円未満)の整数の円で入れてください。");
+  if (errs.length > 0) {
+    $("edit-error").innerHTML = '<div class="notice notice-warn"><div class="n-head"><span class="warn-ic">!</span><span>' + errs.map(esc).join("<br>") + "</span></div></div>";
+    return;
+  }
+  if (editingId) {
+    var p = S.payments.find(function (x) { return x.id === editingId; });
+    if (p) { p.date = date; p.card = card; p.amount = amount; p.memo = memo; }
+  } else {
+    var dup = S.payments.some(function (x) { return x.date === date && x.card === card && x.amount === amount; });
+    if (dup && !deleteArmed) { // deleteArmed を「重複確認済み」フラグに転用しない。専用確認を出す
+      var okGo = confirm("同じ「日付+カード名+金額」がすでにあります。それでも追加しますか?");
+      if (!okGo) return;
+    }
+    S.payments.push({ id: newId(), date: date, card: card, amount: amount, memo: memo });
+  }
+  markDirty(); persist();
+  $("edit-overlay").hidden = true;
+  render();
+}
+
+// ---------- 設定・JSON控え ----------
+function openSettings(focusSalary) {
+  $("settings-salary").value = S.salary > 0 ? String(S.salary) : "";
+  $("salary-error").innerHTML = "";
+  $("export-area").innerHTML = "";
+  $("import-json-area").innerHTML = "";
+  $("settings-overlay").hidden = false;
+  if (focusSalary) { try { $("settings-salary").focus(); } catch (e) {} }
+}
+function saveSalary() {
+  var n = parseSalary($("settings-salary").value);
+  if (isNaN(n)) {
+    $("salary-error").innerHTML = '<div class="notice notice-warn" style="margin-top:8px"><div class="n-head"><span class="warn-ic">!</span><span>給料は0〜99,999,999(1億円未満)の整数の円で入れてください。</span></div></div>';
+    return;
+  }
+  S.salary = n;
+  markDirty(); persist();
+  $("salary-error").innerHTML = '<div class="notice notice-info" style="margin-top:8px">✓ 給料を ' + yen(n) + " にしました。</div>";
+  render();
+}
+function showExport() {
+  var json = JSON.stringify({ app: "給料残額", version: 1, savedAt: new Date().toISOString(), salary: S.salary, payments: S.payments }, null, 1);
+  $("export-area").innerHTML =
+    '<textarea id="export-text" readonly></textarea>'
+    + '<button class="btn btn-outline" id="btn-copy" type="button" style="margin-top:8px">全文コピー</button>'
+    + '<div class="hint">コピーして、メモアプリなど端末の外にも控えを置いてください。</div>';
+  $("export-text").value = json;
+  $("btn-copy").onclick = function () {
+    var ta = $("export-text");
+    ta.select(); ta.setSelectionRange(0, ta.value.length);
+    var done = false;
+    try { done = document.execCommand("copy"); } catch (e) {}
+    if (!done && navigator.clipboard) { navigator.clipboard.writeText(ta.value).then(function () {}); done = true; }
+    $("btn-copy").textContent = done ? "✓ コピーしました" : "コピーできませんでした(長押しで全選択してコピーしてください)";
+  };
+}
+function showImportJson() {
+  $("import-json-area").innerHTML =
+    '<textarea id="import-json-text" placeholder="控えのJSONをここに貼り付け"></textarea>'
+    + '<button class="btn btn-warn" id="btn-import-json-go" type="button" style="margin-top:8px">今のデータを捨てて、この控えで置き換える</button>'
+    + '<div class="hint">※今のデータは消えて、貼り付けた控えの内容になります。</div>';
+  $("btn-import-json-go").onclick = function () {
+    var raw = null;
+    try { raw = JSON.parse($("import-json-text").value); } catch (e) {
+      alert("貼り付けた内容がJSON(控えの形式)として読めませんでした。控えの全文をそのまま貼ってください。");
+      return;
+    }
+    if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
+      alert("貼り付けた内容が控えの形式ではありません。エクスポートした控えの全文をそのまま貼ってください。");
+      return;
+    }
+    var r = buildState(raw);
+    if (r.state.payments.length === 0 && r.state.salary === 0 && !(Array.isArray(raw.payments) && raw.payments.length === 0)) {
+      if (!confirm("この控えからは有効なデータが見つかりませんでした。それでも空の状態で置き換えますか?")) return;
+    }
+    if (!confirm("今のデータを控えの内容で置き換えます。よろしいですか?")) return;
+    S = r.state;
+    markDirty(); persist();
+    $("settings-overlay").hidden = true;
+    loadWarning = r.skipped > 0 ? "控えのうち " + r.skipped + " 件は形式が不正だったため読み込みませんでした。" : "";
+    render();
+  };
+}
+
+// ---------- 起動 ----------
+function init() {
+  load();
+  render();
+  $("btn-save").onclick = function () { persist(); };
+  $("btn-settings").onclick = function () { openSettings(false); };
+  $("btn-settings-close").onclick = function () { $("settings-overlay").hidden = true; render(); };
+  $("btn-salary-save").onclick = saveSalary;
+  $("btn-export").onclick = showExport;
+  $("btn-import-json").onclick = showImportJson;
+  $("btn-import").onclick = function () { pendingRows = null; renderImportPreview(); $("import-overlay").hidden = false; };
+  $("btn-import-close").onclick = function () { pendingRows = null; $("import-overlay").hidden = true; };
+  $("btn-parse").onclick = function () { pendingRows = parseImportText($("import-text").value); renderImportPreview(); };
+  $("btn-manual").onclick = function () { openEdit(null); };
+  $("btn-edit-ok").onclick = saveEdit;
+  $("btn-edit-cancel").onclick = function () { $("edit-overlay").hidden = true; };
+  window.addEventListener("beforeunload", function (e) {
+    if (dirty) { e.preventDefault(); e.returnValue = ""; }
+  });
+}
+init();
+</script>
+</body>
+</html>
