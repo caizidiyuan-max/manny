@@ -67,11 +67,19 @@
     display: inline-flex; align-items: center; justify-content: center; line-height: 1;
   }
 
-  /* 期間バー */
+  /* 期間バー(◀ ▶ で過去・先の期間へ移動できる) */
   .period-bar {
     background: var(--blue-bg); border: 1.5px solid var(--blue); border-radius: 12px;
-    padding: 8px 14px; margin-bottom: 12px; font-size: 15px; font-weight: 800;
+    padding: 8px 10px; margin-bottom: 12px; font-size: 15px; font-weight: 800;
+    display: flex; align-items: center; gap: 6px;
   }
+  .period-bar .p-label { flex: 1; min-width: 0; text-align: center; line-height: 1.4; }
+  .period-bar .p-label .p-sub { font-size: 13px; color: var(--sub); }
+  .p-nav {
+    flex-shrink: 0; font-size: 14px; font-weight: 800; color: var(--blue); background: var(--card);
+    border: 1.5px solid var(--blue); border-radius: 8px; padding: 4px 8px; min-height: 44px;
+  }
+  .p-nav:disabled { opacity: 0.35; cursor: default; }
 
   /* 残額カード(アプリの顔。いちばん大きく) */
   .zangaku-card {
@@ -187,6 +195,7 @@
   <div id="load-warning"></div>
 
   <div class="period-bar" id="period-bar"></div>
+  <div id="period-back"></div>
 
   <div class="zangaku-card" id="zangaku-card"></div>
 
@@ -209,6 +218,8 @@
       <div class="hint">カードアプリの「支払予定」画面のスクショを Claude に送ると、下の4列の形で返ってきます。それをここに貼り付けてください。<br>
       <code>引き落とし日,カード名,金額,メモ</code><br>
       例: <code>2026-08-10,楽天,45210,7月分</code></div>
+      <button class="btn btn-outline" id="btn-ai-prompt" type="button" style="margin-bottom:8px">🤖 AIへのお願い文を出す(写真と一緒にAIへ渡す用)</button>
+      <div id="ai-prompt-area"></div>
       <textarea id="import-text" placeholder="2026-08-10,楽天,45210,7月分&#10;2026-08-27,三井住友,32000,7月分"></textarea>
       <button class="btn btn-primary" id="btn-parse" type="button" style="margin-top:10px">内容を確認する</button>
     </div>
@@ -268,6 +279,8 @@
       <p>2. <code>引き落とし日,カード名,金額,メモ</code> の4列テキストが返ってくる</p>
       <p>3. このアプリの「📋 貼り付けて取り込む」に貼る → 確認 → 残額が出る</p>
       <p>期間は「毎月25日〜翌月24日」で自動的に区切られます(給料日=25日)。</p>
+      <p>ChatGPTなど<strong>Claude以外のAI</strong>に読ませるときは、取り込み画面の「🤖 AIへのお願い文を出す」でコピーした文を写真と一緒に送ると、同じ4列が返ってきます。</p>
+      <p>記録は自動では消えず、<strong>数年分ためられます</strong>(容量は1年で数十KB程度とごくわずか)。画面上部の「◀ ▶」で過去の月をいつでも見返せます。給料は期間ごとに記録されるので、昔の月は当時の給料で計算されます。</p>
     </div>
 
     <h3>データの控え(バックアップ)</h3>
@@ -304,13 +317,18 @@ var PAYDAY = 25; // 給料日(毎月25日固定)
 var MAX_AMOUNT = 99999999; // 金額の業務上の上限: 1億円未満。入口(取り込み・手入力・給料)と読み込み(sanitizePayment)で基準をそろえる
 
 // ---------- 状態 ----------
-var S = { salary: 0, payments: [] };
+// salaryHistory: 期間開始日(YYYY-MM-25)→その期間の給料。保存のたびに今の期間ぶんを記録し、
+// 過去の月を見返すとき「当時の給料」で計算するために使う(記録は数年分たまる)
+var S = { salary: 0, payments: [], salaryHistory: {} };
 var dirty = false;
 var lastSavedAt = "";
 var loadWarning = "";
 var editingId = null;      // 編集パネル: null=新規手入力
 var deleteArmed = false;   // 削除の二段階確認
 var pendingRows = null;    // 取り込みプレビュー中の行
+var viewOffset = 0;        // 表示中の期間(0=今回。-1=1つ前の期間…。表示だけで保存はされない)
+var MIN_OFFSET = -120;     // 過去10年ぶんまで遡れる
+var MAX_OFFSET = 12;       // 先は1年ぶんまで
 
 // ---------- 共通ユーティリティ ----------
 function esc(s) {
@@ -373,12 +391,15 @@ function cleanCard(v) {
 }
 
 // ---------- 期間計算(計画.md §5。区切りは毎月25日固定) ----------
-function currentPeriod() {
+// offset を渡すと今回から offset ヶ月ずらした期間を返す(0または省略=今回)
+function currentPeriod(offset) {
   var t = todayStr();
   var y = Number(t.slice(0, 4)), m = Number(t.slice(5, 7)), d = Number(t.slice(8, 10));
   var sy, sm; // 期間開始の年月
   if (d >= PAYDAY) { sy = y; sm = m; }
   else { sm = m - 1; sy = y; if (sm === 0) { sm = 12; sy = y - 1; } }
+  var idx = sy * 12 + (sm - 1) + (offset || 0); // 通算月に直してずらす(年またぎも自動で合う)
+  sy = Math.floor(idx / 12); sm = (idx % 12) + 1;
   var ey = sy, em = sm + 1;
   if (em === 13) { em = 1; ey = sy + 1; }
   return {
@@ -405,13 +426,25 @@ function sanitizePayment(p) {
 }
 // 生データ→状態。不正な行は数えて捨てる(画面は必ず起動させる)
 function buildState(raw) {
-  var out = { salary: 0, payments: [] }, skipped = 0;
+  var out = { salary: 0, payments: [], salaryHistory: {} }, skipped = 0;
   if (raw && typeof raw === "object") {
     if (typeof raw.salary === "number" && Number.isSafeInteger(raw.salary) && raw.salary >= 0 && raw.salary <= MAX_AMOUNT) out.salary = raw.salary;
     if (Array.isArray(raw.payments)) {
       for (var i = 0; i < raw.payments.length; i++) {
         var p = sanitizePayment(raw.payments[i]);
         if (p) out.payments.push(p); else skipped++;
+      }
+    }
+    // 給料の期間別記録: キーは期間開始日(…-25)の実在日、値は 0〜上限の整数のみ受け入れる
+    if (raw.salaryHistory && typeof raw.salaryHistory === "object" && !Array.isArray(raw.salaryHistory)) {
+      for (var k in raw.salaryHistory) {
+        var v = raw.salaryHistory[k];
+        if (isRealDate(k) && k.slice(8) === pad2(PAYDAY)
+            && typeof v === "number" && Number.isSafeInteger(v) && v >= 0 && v <= MAX_AMOUNT) {
+          out.salaryHistory[k] = v;
+        } else {
+          skipped++; // 給料の記録も payments と同様、捨てた件数を読み飛ばし警告に含める(問題3対応)
+        }
       }
     }
   }
@@ -432,7 +465,8 @@ function load() {
 }
 function persist() {
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify({ salary: S.salary, payments: S.payments }));
+    S.salaryHistory[currentPeriod().start] = S.salary; // 今の期間の給料を記録(過去の月を当時の給料で見返すため)
+    localStorage.setItem(STORE_KEY, JSON.stringify({ salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory }));
   } catch (e) {
     alert("保存に失敗しました。ブラウザの保存領域が使えない状態です。控え(JSON)をコピーして退避してください。");
     return;
@@ -463,8 +497,10 @@ function periodPayments(period) {
     .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
 }
 function render() {
-  var period = currentPeriod();
+  var period = currentPeriod(viewOffset);
   var today = todayStr();
+  var isCurrent = viewOffset === 0;
+  var isPast = period.end < today;
   var rows = periodPayments(period);
   var total = 0, paid = 0;
   rows.forEach(function (p) {
@@ -472,28 +508,53 @@ function render() {
     if (p.date < today) paid += p.amount; // 今日より前=済(今日当日は「これから」)
   });
   var upcoming = total - paid;
-  var zan = S.salary - total;
 
-  $("period-bar").textContent = "今回の給料期間 " + period.label;
+  // この期間の給料: 今回は現在値、過去・先の期間は当時の記録(なければ今の値で代用して知らせる)
+  var sal = S.salary, salNote = "";
+  if (!isCurrent) {
+    if (Object.prototype.hasOwnProperty.call(S.salaryHistory, period.start)) sal = S.salaryHistory[period.start];
+    else salNote = "この期間の給料の記録がないため、今の給料で計算しています。";
+  }
+  var zan = sal - total;
 
-  var html = '<div class="z-label">全部払ったら残る</div>'
+  // 期間バー(◀ ▶ で移動。記録は数年分残る)
+  $("period-bar").innerHTML =
+    '<button class="p-nav" id="btn-period-prev" type="button"' + (viewOffset <= MIN_OFFSET ? " disabled" : "") + '>◀ 前</button>'
+    + '<span class="p-label"><span class="p-sub">' + (isCurrent ? "今回の給料期間" : (isPast ? "過去の記録" : "先の期間")) + "</span><br>" + esc(period.label) + "</span>"
+    + '<button class="p-nav" id="btn-period-next" type="button"' + (viewOffset >= MAX_OFFSET ? " disabled" : "") + '>次 ▶</button>';
+  $("btn-period-prev").onclick = function () { if (viewOffset > MIN_OFFSET) { viewOffset--; render(); } };
+  $("btn-period-next").onclick = function () { if (viewOffset < MAX_OFFSET) { viewOffset++; render(); } };
+  $("period-back").innerHTML = isCurrent ? "" : '<button class="chip-btn" id="btn-period-today" type="button" style="width:100%;margin-bottom:12px">↩ 今回の期間に戻る</button>';
+  if (!isCurrent) $("btn-period-today").onclick = function () { viewOffset = 0; render(); };
+
+  var zLabel = isCurrent ? "全部払ったら残る" : (isPast ? "全部払って残った(記録)" : "全部払ったら残る(見込み)");
+  var html = '<div class="z-label">' + zLabel + "</div>"
     + '<div class="z-amount' + (zan < 0 ? " minus" : "") + '">' + yen(zan) + "</div>"
-    + '<div class="z-detail">給料 ' + yen(S.salary) + " − 引き落とし合計 " + yen(total) + "<br>"
+    + '<div class="z-detail">給料 ' + yen(sal) + " − 引き落とし合計 " + yen(total) + "<br>"
     + "うち ✓支払済み " + yen(paid) + " / →これから " + yen(upcoming) + "</div>";
   if (zan < 0) {
     html += '<div class="z-minus-note"><span class="warn-ic">!</span><span>' + yen(-zan) + " 足りません(給料より引き落としが多い状態です)</span></div>";
   }
   $("zangaku-card").innerHTML = html;
 
-  $("salary-row").innerHTML =
-    '<span class="s-label">給料(手取り)</span>'
-    + '<span class="s-amount">' + yen(S.salary) + "</span>"
-    + '<button class="chip-btn" id="btn-salary-edit" type="button">変更</button>';
-  $("btn-salary-edit").onclick = function () { openSettings(true); };
+  if (isCurrent) {
+    $("salary-row").innerHTML =
+      '<span class="s-label">給料(手取り)</span>'
+      + '<span class="s-amount">' + yen(S.salary) + "</span>"
+      + '<button class="chip-btn" id="btn-salary-edit" type="button">変更</button>';
+    $("btn-salary-edit").onclick = function () { openSettings(true); };
+  } else {
+    $("salary-row").innerHTML =
+      '<span class="s-label">この期間の給料(記録)</span>'
+      + '<span class="s-amount">' + yen(sal) + "</span>"
+      + (salNote ? '<span style="width:100%;font-size:13px;color:var(--sub)">' + esc(salNote) + "</span>" : "");
+  }
 
   $("list-head").textContent = "この期間の引き落とし(" + rows.length + "件)";
   if (rows.length === 0) {
-    $("pay-list").innerHTML = '<div class="empty-note">まだ引き落としが入っていません。カードアプリの支払予定スクショを Claude に送って、返ってきた4列テキストを「📋 貼り付けて取り込む」に貼ってください。</div>';
+    $("pay-list").innerHTML = isCurrent
+      ? '<div class="empty-note">まだ引き落としが入っていません。カードアプリの支払予定スクショを Claude に送って、返ってきた4列テキストを「📋 貼り付けて取り込む」に貼ってください。</div>'
+      : '<div class="empty-note">この期間の引き落とし記録はありません。</div>';
   } else {
     $("pay-list").innerHTML = rows.map(function (p) {
       var done = p.date < today;
@@ -592,7 +653,7 @@ function renderImportPreview() {
       + dupCount + "件は同じ「日付+カード名+金額」がすでにあります。同じスクショを2回貼っていませんか?</span></div></div>";
   }
   if (outCount > 0) {
-    html += '<div class="notice notice-info" style="margin-top:10px">⏭ の ' + outCount + "件は今回の期間(" + esc(currentPeriod().label) + ")の外です。保存はされ、その期間になると表示されます。</div>";
+    html += '<div class="notice notice-info" style="margin-top:10px">⏭ の ' + outCount + "件は今回の期間(" + esc(currentPeriod().label) + ")の外です。保存はされ、その日付の期間(◀ ▶ で移動)で表示されます。</div>";
   }
   if (suspectCount > 0) {
     html += '<div class="notice notice-warn" style="margin-top:10px"><div class="n-head"><span class="warn-ic">!</span><span>メモが数字だけの行があります。金額のカンマ(45,210 など)で列がずれていないか、金額とメモを確認してください。</span></div></div>';
@@ -607,11 +668,13 @@ function renderImportPreview() {
   area.innerHTML = html;
 
   var doImport = function (skipDup) {
-    var added = 0;
+    var added = 0, outsideView = 0;
+    var viewP = currentPeriod(viewOffset); // 表示中の期間(問題2対応: 画面に出ない行を数えて知らせる)
     pendingRows.ok.forEach(function (r) {
       if (skipDup && r.dup) return;
       S.payments.push({ id: newId(), date: r.date, card: r.card, amount: r.amount, memo: r.memo });
       added++;
+      if (!inPeriod(r.date, viewP)) outsideView++;
     });
     if (added > 0) {
       markDirty();
@@ -622,7 +685,11 @@ function renderImportPreview() {
     $("import-overlay").hidden = true;
     render();
     if (added > 0) {
-      $("load-warning").innerHTML = '<div class="notice notice-info">✓ ' + added + "件を取り込みました。</div>" + $("load-warning").innerHTML;
+      var doneMsg = "✓ " + added + "件を取り込みました。";
+      if (outsideView > 0) {
+        doneMsg += "うち " + outsideView + "件は表示中の期間の外なので、この画面には出ません(◀ ▶ でその期間を開くと見られます)。";
+      }
+      $("load-warning").innerHTML = '<div class="notice notice-info">' + esc(doneMsg) + "</div>" + $("load-warning").innerHTML;
     } else {
       $("load-warning").innerHTML = '<div class="notice notice-info">取り込んだ行はありません(すべて重複のため除きました)。データは変わっていません。</div>' + $("load-warning").innerHTML;
     }
@@ -691,9 +758,50 @@ function saveEdit() {
     }
     S.payments.push({ id: newId(), date: date, card: card, amount: amount, memo: memo });
   }
+  var wasEditing = !!editingId;
   markDirty(); persist();
   $("edit-overlay").hidden = true;
   render();
+  // 保存の手応え。表示中の期間に入らない行は、画面に出ない理由もあわせて知らせる(問題2対応)
+  var msg = wasEditing ? "✓ 修正を保存しました。" : "✓ 保存しました。";
+  if (!inPeriod(date, currentPeriod(viewOffset))) {
+    msg += "この行(" + date + ")は表示中の期間の外なので、この画面には出ません(◀ ▶ でその期間を開くと見られます)。";
+  }
+  $("load-warning").innerHTML = '<div class="notice notice-info">' + esc(msg) + "</div>" + $("load-warning").innerHTML;
+}
+
+// ---------- AIへのお願い文 ----------
+// コピーして写真と一緒に ChatGPT 等のAIへ渡すと、このアプリに貼れる4列が返ってくる文面。
+// カード番号を出力させないルールを必ず含める(安全装置)
+var AI_PROMPT = [
+  "クレジットカードアプリの「支払予定」画面のスクショを渡します。画像を読み取って、次の4列のCSV行だけを返してください(前置き・説明・要約は書かない):",
+  "",
+  "引き落とし日,カード名,金額,メモ",
+  "",
+  "ルール:",
+  "- 1つの引き落とし = 1行",
+  "- 引き落とし日は YYYY-MM-DD(画面の引き落とし予定日をそのまま)",
+  "- 年が書かれていない日付(8/10 など)は、引き落とし予定の年を補って YYYY-MM-DD にする(今日から見て直近の未来の日付として解釈する。例: 今日が12月で画面が1/27なら翌年の1月)",
+  "- カード名は「楽天」「三井住友」のような呼び名だけ。カード番号・有効期限は絶対に書かない",
+  "- 金額は1以上の整数の円。カンマ・¥マーク・小数は書かない",
+  "- メモは任意(「8月分」など)。メモの中にカンマ「,」は使わない(「、」に置き換える)",
+  "- 読み取れない画像があれば、最後に「○枚目は読み取れませんでした」と1行だけ書く"
+].join("\n");
+
+function showAiPrompt() {
+  $("ai-prompt-area").innerHTML =
+    '<textarea id="ai-prompt-text" readonly style="min-height:200px"></textarea>'
+    + '<button class="btn btn-outline" id="btn-ai-copy" type="button" style="margin:8px 0">全文コピー</button>'
+    + '<div class="hint" style="margin-bottom:10px">コピーした文を、写真と一緒に ChatGPT などのAIに送ってください。返ってきた4列を下の欄に貼ればOKです。</div>';
+  $("ai-prompt-text").value = AI_PROMPT;
+  $("btn-ai-copy").onclick = function () {
+    var ta = $("ai-prompt-text");
+    ta.select(); ta.setSelectionRange(0, ta.value.length);
+    var done = false;
+    try { done = document.execCommand("copy"); } catch (e) {}
+    if (!done && navigator.clipboard) { navigator.clipboard.writeText(ta.value).then(function () {}); done = true; }
+    $("btn-ai-copy").textContent = done ? "✓ コピーしました" : "コピーできませんでした(長押しで全選択してコピーしてください)";
+  };
 }
 
 // ---------- 設定・JSON控え ----------
@@ -717,7 +825,7 @@ function saveSalary() {
   render();
 }
 function showExport() {
-  var json = JSON.stringify({ app: "給料残額", version: 1, savedAt: new Date().toISOString(), salary: S.salary, payments: S.payments }, null, 1);
+  var json = JSON.stringify({ app: "給料残額", version: 1, savedAt: new Date().toISOString(), salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory }, null, 1);
   $("export-area").innerHTML =
     '<textarea id="export-text" readonly></textarea>'
     + '<button class="btn btn-outline" id="btn-copy" type="button" style="margin-top:8px">全文コピー</button>'
@@ -748,7 +856,9 @@ function showImportJson() {
       return;
     }
     var r = buildState(raw);
-    if (r.state.payments.length === 0 && r.state.salary === 0 && !(Array.isArray(raw.payments) && raw.payments.length === 0)) {
+    // 給料の期間別記録(salaryHistory)だけの控えも「有効なデータあり」として扱う(問題5対応: 「空の状態で置き換える」という文言が実態と食い違わないように)
+    if (r.state.payments.length === 0 && r.state.salary === 0 && Object.keys(r.state.salaryHistory).length === 0
+        && !(Array.isArray(raw.payments) && raw.payments.length === 0)) {
       if (!confirm("この控えからは有効なデータが見つかりませんでした。それでも空の状態で置き換えますか?")) return;
     }
     if (!confirm("今のデータを控えの内容で置き換えます。よろしいですか?")) return;
@@ -770,7 +880,8 @@ function init() {
   $("btn-salary-save").onclick = saveSalary;
   $("btn-export").onclick = showExport;
   $("btn-import-json").onclick = showImportJson;
-  $("btn-import").onclick = function () { pendingRows = null; renderImportPreview(); $("import-overlay").hidden = false; };
+  $("btn-import").onclick = function () { pendingRows = null; renderImportPreview(); $("ai-prompt-area").innerHTML = ""; $("import-overlay").hidden = false; };
+  $("btn-ai-prompt").onclick = showAiPrompt;
   $("btn-import-close").onclick = function () { pendingRows = null; $("import-overlay").hidden = true; };
   $("btn-parse").onclick = function () { pendingRows = parseImportText($("import-text").value); renderImportPreview(); };
   $("btn-manual").onclick = function () { openEdit(null); };
