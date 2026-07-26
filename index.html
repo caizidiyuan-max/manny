@@ -110,6 +110,17 @@
     border: 1.5px solid var(--line); border-radius: 10px; text-align: right;
   }
 
+  /* 口座残高カード(任意機能。残高を入れたときだけ出る) */
+  .balance-card {
+    background: var(--card); border: 1.5px solid var(--line); border-radius: 12px;
+    padding: 10px 14px; margin-bottom: 12px;
+  }
+  .balance-card .b-label { font-size: 15px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
+  .balance-card .b-amount { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .balance-card .b-amount.minus { color: var(--warn); }
+  .balance-card .b-detail { font-size: 14px; color: var(--sub); line-height: 1.7; }
+  .balance-card .b-old { color: var(--warn); font-weight: 700; }
+
   /* お知らせ(警告=warn系・案内=blue系。色+枠+アイコン+文字の三重) */
   .notice { font-size: 15px; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; line-height: 1.7; background: var(--card); border: 1.5px solid var(--line); }
   .notice-warn { background: var(--warn-bg); border: 1.5px solid var(--warn); }
@@ -201,6 +212,8 @@
 
   <div class="salary-row" id="salary-row"></div>
 
+  <div class="balance-card" id="balance-card" hidden></div>
+
   <div class="entry-btns">
     <button class="btn btn-primary" id="btn-import" type="button">📋 貼り付けて取り込む</button>
     <button class="btn btn-outline" id="btn-manual" type="button">✏ 1件手入力</button>
@@ -217,7 +230,8 @@
     <div class="panel">
       <div class="hint">カードアプリの「支払予定」画面のスクショを Claude に送ると、下の4列の形で返ってきます。それをここに貼り付けてください。<br>
       <code>引き落とし日,カード名,金額,メモ</code><br>
-      例: <code>2026-08-10,楽天,45210,7月分</code></div>
+      例: <code>2026-08-10,楽天,45210,7月分</code><br>
+      銀行アプリの残高画面なら <code>残高,日付,金額</code> の1行になります(貼ると「口座残高から見た残り」も出ます)。</div>
       <button class="btn btn-outline" id="btn-ai-prompt" type="button" style="margin-bottom:8px">🤖 AIへのお願い文を出す(写真と一緒にAIへ渡す用)</button>
       <div id="ai-prompt-area"></div>
       <textarea id="import-text" placeholder="2026-08-10,楽天,45210,7月分&#10;2026-08-27,三井住友,32000,7月分"></textarea>
@@ -273,10 +287,25 @@
       <div class="hint" style="margin-top:6px">一度入れれば翌月以降も引き継がれます。変わった月だけ直せばOK。</div>
     </div>
 
+    <h3>口座残高(なくてもOK)</h3>
+    <div class="panel">
+      <div class="hint">給与振込口座の「いま現在の残高」を入れると、メイン画面に「残高 − これからの引き落とし = 残る見込み」も表示されます。銀行アプリの残高画面のスクショをAIに読ませて取り込むのがかんたんです(<code>残高,日付,金額</code> の1行が返ります)。</div>
+      <div class="salary-edit" style="margin-top:0">
+        <input id="settings-balance" type="text" inputmode="numeric" placeholder="例: 123456">
+        <button class="chip-btn" id="btn-balance-save" type="button">決定</button>
+      </div>
+      <div class="field" style="margin-top:8px">
+        <label for="settings-balance-date">いつ時点の残高か(スクショを撮った日)</label>
+        <input id="settings-balance-date" type="date">
+      </div>
+      <div id="balance-error"></div>
+      <button class="btn btn-ghost" id="btn-balance-clear" type="button">残高の記録を消す(表示をやめる)</button>
+    </div>
+
     <h3>使い方(毎月のルーチン)</h3>
     <div class="panel setting-text">
-      <p>1. 25日ごろ、カードアプリの「支払予定」画面をスクショして Claude に送る(2〜3枚まとめてOK)</p>
-      <p>2. <code>引き落とし日,カード名,金額,メモ</code> の4列テキストが返ってくる</p>
+      <p>1. 25日ごろ、カードアプリの「支払予定」画面をスクショして Claude に送る(2〜3枚まとめてOK)。銀行アプリの<strong>残高画面</strong>も一緒に送ると「今の残高から見た残り」も出せる</p>
+      <p>2. <code>引き落とし日,カード名,金額,メモ</code> の4列テキスト(残高画面は <code>残高,日付,金額</code> の1行)が返ってくる</p>
       <p>3. このアプリの「📋 貼り付けて取り込む」に貼る → 確認 → 残額が出る</p>
       <p>期間は「毎月25日〜翌月24日」で自動的に区切られます(給料日=25日)。</p>
       <p>ChatGPTなど<strong>Claude以外のAI</strong>に読ませるときは、取り込み画面の「🤖 AIへのお願い文を出す」でコピーした文を写真と一緒に送ると、同じ4列が返ってきます。</p>
@@ -319,7 +348,8 @@ var MAX_AMOUNT = 99999999; // 金額の業務上の上限: 1億円未満。入�
 // ---------- 状態 ----------
 // salaryHistory: 期間開始日(YYYY-MM-25)→その期間の給料。保存のたびに今の期間ぶんを記録し、
 // 過去の月を見返すとき「当時の給料」で計算するために使う(記録は数年分たまる)
-var S = { salary: 0, payments: [], salaryHistory: {} };
+// balance: 給与振込口座の残高スナップショット { amount, date }。null=未設定(任意機能)
+var S = { salary: 0, payments: [], salaryHistory: {}, balance: null };
 var dirty = false;
 var lastSavedAt = "";
 var loadWarning = "";
@@ -426,7 +456,7 @@ function sanitizePayment(p) {
 }
 // 生データ→状態。不正な行は数えて捨てる(画面は必ず起動させる)
 function buildState(raw) {
-  var out = { salary: 0, payments: [], salaryHistory: {} }, skipped = 0;
+  var out = { salary: 0, payments: [], salaryHistory: {}, balance: null }, skipped = 0;
   if (raw && typeof raw === "object") {
     if (typeof raw.salary === "number" && Number.isSafeInteger(raw.salary) && raw.salary >= 0 && raw.salary <= MAX_AMOUNT) out.salary = raw.salary;
     if (Array.isArray(raw.payments)) {
@@ -445,6 +475,16 @@ function buildState(raw) {
         } else {
           skipped++; // 給料の記録も payments と同様、捨てた件数を読み飛ばし警告に含める(問題3対応)
         }
+      }
+    }
+    // 口座残高: 日付が実在し金額が 0〜上限の整数のときだけ受け入れる。不正なら捨てて件数に数える
+    if (raw.balance !== null && raw.balance !== undefined) {
+      var b = raw.balance;
+      if (b && typeof b === "object" && typeof b.date === "string" && isRealDate(b.date)
+          && typeof b.amount === "number" && Number.isSafeInteger(b.amount) && b.amount >= 0 && b.amount <= MAX_AMOUNT) {
+        out.balance = { amount: b.amount, date: b.date };
+      } else {
+        skipped++;
       }
     }
   }
@@ -466,7 +506,7 @@ function load() {
 function persist() {
   try {
     S.salaryHistory[currentPeriod().start] = S.salary; // 今の期間の給料を記録(過去の月を当時の給料で見返すため)
-    localStorage.setItem(STORE_KEY, JSON.stringify({ salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory }));
+    localStorage.setItem(STORE_KEY, JSON.stringify({ salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory, balance: S.balance }));
   } catch (e) {
     alert("保存に失敗しました。ブラウザの保存領域が使えない状態です。控え(JSON)をコピーして退避してください。");
     return;
@@ -550,6 +590,32 @@ function render() {
       + (salNote ? '<span style="width:100%;font-size:13px;color:var(--sub)">' + esc(salNote) + "</span>" : "");
   }
 
+  // 口座残高カード(今回の期間で残高が入っているときだけ)。
+  // 残高の記録日以降の引き落とし = まだ残高から引かれていないものとして差し引く(済/これからと同じ「当日はこれから」基準)
+  var bhtml = "";
+  if (isCurrent && S.balance) {
+    var upcomingFromBal = 0;
+    rows.forEach(function (p) { if (p.date >= S.balance.date) upcomingFromBal += p.amount; });
+    var bz = S.balance.amount - upcomingFromBal;
+    bhtml = '<div class="b-label"><span>口座残高から見ると</span>'
+      + '<button class="chip-btn" id="btn-balance-edit" type="button">変更</button></div>'
+      + '<div class="b-amount' + (bz < 0 ? " minus" : "") + '">' + yen(bz) + "</div>"
+      + '<div class="b-detail">残高 ' + yen(S.balance.amount) + "(" + esc(S.balance.date) + "時点)− 記録日以降の引き落とし " + yen(upcomingFromBal) + "</div>";
+    if (bz < 0) {
+      bhtml += '<div class="b-detail b-old">! ' + yen(-bz) + " 足りません(残高より引き落としが多い見込みです)</div>";
+    }
+    if (S.balance.date < period.start) {
+      bhtml += '<div class="b-detail b-old">! 残高の記録が前の期間のもので古いです。新しい残高スクショで更新してください。</div>';
+    }
+    // 問題2対応: 記録日が未来だと記録日以降の引き落としが少なく数えられ、多く残る見込みに見えてしまう
+    if (S.balance.date > todayStr()) {
+      bhtml += '<div class="b-detail b-old">! 残高の記録日が未来の日付です。スクショを撮った日になっているか確かめてください(このままだと残る額が多めに見えます)。</div>';
+    }
+  }
+  $("balance-card").innerHTML = bhtml;
+  $("balance-card").hidden = !bhtml;
+  if (bhtml) $("btn-balance-edit").onclick = function () { openSettings(false); };
+
   $("list-head").textContent = "この期間の引き落とし(" + rows.length + "件)";
   if (rows.length === 0) {
     $("pay-list").innerHTML = isCurrent
@@ -576,10 +642,10 @@ function render() {
 }
 
 // ---------- 取り込み(4列パーサ) ----------
-// 戻り値: { ok: [{date,card,amount,memo,dup,outside,suspect}], bad: [{line,reason}] }
+// 戻り値: { ok: [{date,card,amount,memo,dup,outside,suspect}], bad: [{line,reason}], balance: {amount,date}|null }
 function parseImportText(text) {
   var period = currentPeriod();
-  var ok = [], bad = [];
+  var ok = [], bad = [], balance = null;
   var seen = {}; // 貼り付け内の重複検出用
   var lines = String(text || "").split(/\r?\n/);
   for (var i = 0; i < lines.length; i++) {
@@ -587,6 +653,25 @@ function parseImportText(text) {
     if (line === "" || /^`+$/.test(line)) continue;           // 空行・コードブロック記号は無視
     if (/^引き落とし日/.test(line)) continue;                  // 見出し行は無視
     var cols = line.split(",");
+    // 「残高,日付,金額」の行 = 口座残高の更新(引き落としではない)。複数あれば最後の1行を採用
+    if (cols[0].trim() === "残高") {
+      if (cols.length !== 3 && cols.length !== 2) {
+        bad.push({ line: lines[i], reason: "残高の行は「残高,日付,金額」の3列です。金額にカンマ(123,456 など)が入っていませんか?" });
+        continue;
+      }
+      // 問題1対応: 2列で2列目が日付として読めるとき = 金額の書き忘れ。
+      // そのまま進むと日付を金額として検査してしまい「金額が読めません」という分かりにくい案内になる
+      if (cols.length === 2 && normalizeDate(cols[1])) {
+        bad.push({ line: lines[i], reason: "金額が書かれていないようです。「残高,日付,金額」の形で入れてください(日付を省くときは「残高,金額」)。" });
+        continue;
+      }
+      var bDate = cols.length === 3 ? normalizeDate(cols[1]) : todayStr(); // 日付省略は今日扱い
+      if (!bDate) { bad.push({ line: lines[i], reason: "残高の日付が「YYYY-MM-DD」の実在する日付として読めません。" }); continue; }
+      var bAmt = parseSalary(cols.length === 3 ? cols[2] : cols[1]);       // 残高は給料と同じ 0〜上限
+      if (isNaN(bAmt)) { bad.push({ line: lines[i], reason: "残高の金額が「0〜99,999,999(1億円未満)の整数の円」として読めません。" }); continue; }
+      balance = { amount: bAmt, date: bDate, future: bDate > todayStr() }; // 問題2対応: 未来日付は受理するが警告する
+      continue;
+    }
     if (cols.length === 3) cols.push("");                      // メモ省略は許す
     if (cols.length !== 4) {
       bad.push({ line: lines[i], reason: "列が4つではありません(" + cols.length + "列)。金額にカンマ(45,210 など)が入っていませんか?" });
@@ -611,7 +696,7 @@ function parseImportText(text) {
       suspect: /^\d+$/.test(memo) && memo !== "" // メモが数字だけ→金額のカンマ割れの疑い
     });
   }
-  return { ok: ok, bad: bad };
+  return { ok: ok, bad: bad, balance: balance };
 }
 
 function renderImportPreview() {
@@ -629,8 +714,9 @@ function renderImportPreview() {
     html += "</div>";
   }
 
-  if (ok.length === 0) {
-    html += '<div class="notice notice-info">取り込める行がありませんでした。形式は <code>引き落とし日,カード名,金額,メモ</code> の4列です。</div>';
+  var bal = pendingRows.balance;
+  if (ok.length === 0 && !bal) {
+    html += '<div class="notice notice-info">取り込める行がありませんでした。形式は <code>引き落とし日,カード名,金額,メモ</code> の4列(口座残高は <code>残高,日付,金額</code>)です。</div>';
     area.innerHTML = html;
     return;
   }
@@ -639,7 +725,15 @@ function renderImportPreview() {
   ok.forEach(function (r) { total += r.amount; if (r.dup) dupCount++; if (r.outside) outCount++; if (r.suspect) suspectCount++; });
 
   html += '<div class="panel">';
-  html += '<div class="sum-line">' + ok.length + "件・合計 " + yen(total) + " を取り込みます</div>";
+  if (bal) {
+    html += '<div class="notice notice-info">💰 口座残高を ' + yen(bal.amount) + "(" + esc(bal.date) + "時点)に更新します。</div>";
+    if (bal.future) {
+      html += '<div class="notice notice-warn"><div class="n-head"><span class="warn-ic">!</span><span>残高の記録日(' + esc(bal.date) + ")が未来の日付です。スクショを撮った日になっているか確かめてください。</span></div></div>";
+    }
+  }
+  if (ok.length > 0) {
+    html += '<div class="sum-line">' + ok.length + "件・合計 " + yen(total) + " を取り込みます</div>";
+  }
   ok.forEach(function (r) {
     html += '<div class="preview-row"><span style="flex:1;min-width:0">' + esc(r.date) + " " + esc(r.card)
       + (r.memo ? ' <span style="color:var(--sub);font-size:13px">' + esc(r.memo) + "</span>" : "") + "</span>"
@@ -661,8 +755,10 @@ function renderImportPreview() {
   if (dupCount > 0) {
     html += '<button class="btn btn-primary" id="btn-import-skip-dup" type="button">重複らしき行を除いて取り込む(' + (ok.length - dupCount) + "件)</button>";
     html += '<button class="btn btn-warn" id="btn-import-all" type="button">重複も含めて全部取り込む(' + ok.length + "件)</button>";
+  } else if (ok.length > 0) {
+    html += '<button class="btn btn-primary" id="btn-import-all" type="button">取り込む(' + ok.length + "件" + (bal ? "+残高" : "") + ")</button>";
   } else {
-    html += '<button class="btn btn-primary" id="btn-import-all" type="button">取り込む(' + ok.length + "件)</button>";
+    html += '<button class="btn btn-primary" id="btn-import-all" type="button">残高を更新する</button>';
   }
   html += "</div>";
   area.innerHTML = html;
@@ -676,7 +772,12 @@ function renderImportPreview() {
       added++;
       if (!inPeriod(r.date, viewP)) outsideView++;
     });
-    if (added > 0) {
+    var balUpdated = false;
+    if (pendingRows.balance) {
+      S.balance = { amount: pendingRows.balance.amount, date: pendingRows.balance.date };
+      balUpdated = true;
+    }
+    if (added > 0 || balUpdated) {
       markDirty();
       persist(); // 取り込みは操作が重いので即保存(保存バーにも反映される)
     }
@@ -684,10 +785,16 @@ function renderImportPreview() {
     $("import-text").value = "";
     $("import-overlay").hidden = true;
     render();
-    if (added > 0) {
-      var doneMsg = "✓ " + added + "件を取り込みました。";
+    if (added > 0 || balUpdated) {
+      var doneMsg = added > 0 ? "✓ " + added + "件を取り込みました。" : "";
       if (outsideView > 0) {
         doneMsg += "うち " + outsideView + "件は表示中の期間の外なので、この画面には出ません(◀ ▶ でその期間を開くと見られます)。";
+      }
+      if (balUpdated) {
+        doneMsg += "💰 口座残高を " + yen(S.balance.amount) + "(" + S.balance.date + "時点)に更新しました。";
+        if (S.balance.date > todayStr()) {
+          doneMsg += "! 記録日が未来の日付です。スクショを撮った日になっているか確かめてください。";
+        }
       }
       $("load-warning").innerHTML = '<div class="notice notice-info">' + esc(doneMsg) + "</div>" + $("load-warning").innerHTML;
     } else {
@@ -785,6 +892,7 @@ var AI_PROMPT = [
   "- カード名は「楽天」「三井住友」のような呼び名だけ。カード番号・有効期限は絶対に書かない",
   "- 金額は1以上の整数の円。カンマ・¥マーク・小数は書かない",
   "- メモは任意(「8月分」など)。メモの中にカンマ「,」は使わない(「、」に置き換える)",
+  "- もし画像が銀行口座の「残高」画面(いま現在の口座残高)なら、その画像については代わりに次の1行だけを返す: 残高,YYYY-MM-DD,金額(日付は画面に写っている時点の日付。なければ今日の日付。口座番号は絶対に書かない)",
   "- 読み取れない画像があれば、最後に「○枚目は読み取れませんでした」と1行だけ書く"
 ].join("\n");
 
@@ -808,10 +916,34 @@ function showAiPrompt() {
 function openSettings(focusSalary) {
   $("settings-salary").value = S.salary > 0 ? String(S.salary) : "";
   $("salary-error").innerHTML = "";
+  $("settings-balance").value = S.balance ? String(S.balance.amount) : "";
+  $("settings-balance-date").value = S.balance ? S.balance.date : todayStr();
+  $("balance-error").innerHTML = "";
   $("export-area").innerHTML = "";
   $("import-json-area").innerHTML = "";
   $("settings-overlay").hidden = false;
   if (focusSalary) { try { $("settings-salary").focus(); } catch (e) {} }
+}
+function saveBalance() {
+  var n = parseSalary($("settings-balance").value); // 残高は給料と同じ 0〜上限
+  if (isNaN(n)) {
+    $("balance-error").innerHTML = '<div class="notice notice-warn" style="margin-top:8px"><div class="n-head"><span class="warn-ic">!</span><span>残高は0〜99,999,999(1億円未満)の整数の円で入れてください。</span></div></div>';
+    return;
+  }
+  var d = normalizeDate($("settings-balance-date").value) || todayStr(); // 日付未指定は今日扱い
+  S.balance = { amount: n, date: d };
+  markDirty(); persist();
+  $("balance-error").innerHTML = '<div class="notice notice-info" style="margin-top:8px">✓ 口座残高を ' + yen(n) + "(" + esc(d) + "時点)にしました。</div>"
+    // 問題2対応: 未来の日付は受理するが、気づけるように警告を出す
+    + (d > todayStr() ? '<div class="notice notice-warn" style="margin-top:8px"><div class="n-head"><span class="warn-ic">!</span><span>記録日が未来の日付です。スクショを撮った日になっているか確かめてください(このままだと残る額が多めに見えます)。</span></div></div>' : "");
+  render();
+}
+function clearBalance() {
+  if (!S.balance) { $("balance-error").innerHTML = '<div class="notice notice-info" style="margin-top:8px">残高はもともと入っていません。</div>'; return; }
+  S.balance = null;
+  markDirty(); persist();
+  $("balance-error").innerHTML = '<div class="notice notice-info" style="margin-top:8px">✓ 残高の記録を消しました(メイン画面の残高カードも消えます)。</div>';
+  render();
 }
 function saveSalary() {
   var n = parseSalary($("settings-salary").value);
@@ -825,7 +957,7 @@ function saveSalary() {
   render();
 }
 function showExport() {
-  var json = JSON.stringify({ app: "給料残額", version: 1, savedAt: new Date().toISOString(), salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory }, null, 1);
+  var json = JSON.stringify({ app: "給料残額", version: 1, savedAt: new Date().toISOString(), salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory, balance: S.balance }, null, 1);
   $("export-area").innerHTML =
     '<textarea id="export-text" readonly></textarea>'
     + '<button class="btn btn-outline" id="btn-copy" type="button" style="margin-top:8px">全文コピー</button>'
@@ -858,6 +990,7 @@ function showImportJson() {
     var r = buildState(raw);
     // 給料の期間別記録(salaryHistory)だけの控えも「有効なデータあり」として扱う(問題5対応: 「空の状態で置き換える」という文言が実態と食い違わないように)
     if (r.state.payments.length === 0 && r.state.salary === 0 && Object.keys(r.state.salaryHistory).length === 0
+        && r.state.balance === null
         && !(Array.isArray(raw.payments) && raw.payments.length === 0)) {
       if (!confirm("この控えからは有効なデータが見つかりませんでした。それでも空の状態で置き換えますか?")) return;
     }
@@ -878,6 +1011,8 @@ function init() {
   $("btn-settings").onclick = function () { openSettings(false); };
   $("btn-settings-close").onclick = function () { $("settings-overlay").hidden = true; render(); };
   $("btn-salary-save").onclick = saveSalary;
+  $("btn-balance-save").onclick = saveBalance;
+  $("btn-balance-clear").onclick = clearBalance;
   $("btn-export").onclick = showExport;
   $("btn-import-json").onclick = showImportJson;
   $("btn-import").onclick = function () { pendingRows = null; renderImportPreview(); $("ai-prompt-area").innerHTML = ""; $("import-overlay").hidden = false; };
