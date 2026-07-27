@@ -84,7 +84,7 @@
   /* 残額カード(アプリの顔。いちばん大きく) */
   .zangaku-card {
     background: var(--card); border: 2px solid var(--ink); border-radius: 14px;
-    padding: 14px 18px; margin-bottom: 12px;
+    padding: 12px 16px; margin-bottom: 8px; /* 案C: 余白を控えめに詰めて主要ボタンを画面内へ(文字サイズ・行間は変えない) */
   }
   .zangaku-card .z-label { font-size: 15px; font-weight: 800; color: var(--sub); }
   .zangaku-card .z-amount { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3; overflow-wrap: anywhere; }
@@ -99,7 +99,7 @@
   /* 給料欄 */
   .salary-row {
     background: var(--card); border: 1.5px solid var(--line); border-radius: 12px;
-    padding: 10px 14px; margin-bottom: 12px;
+    padding: 8px 12px; margin-bottom: 8px; /* 案C */
     display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap;
   }
   .salary-row .s-label { font-size: 15px; font-weight: 800; }
@@ -113,13 +113,23 @@
   /* 口座残高カード(任意機能。残高を入れたときだけ出る) */
   .balance-card {
     background: var(--card); border: 1.5px solid var(--line); border-radius: 12px;
-    padding: 10px 14px; margin-bottom: 12px;
+    padding: 8px 12px; margin-bottom: 8px; /* 案C */
   }
   .balance-card .b-label { font-size: 15px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
   .balance-card .b-amount { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
   .balance-card .b-amount.minus { color: var(--warn); }
   .balance-card .b-detail { font-size: 14px; color: var(--sub); line-height: 1.7; }
   .balance-card .b-old { color: var(--warn); font-weight: 700; }
+  /* 3つの見方を見分けるための左帯(問題6対応)。①残額=濃い枠、②繰り越し=橙、③口座残高=青 */
+  .balance-card.view-carry { border-left: 6px solid var(--orange); }
+  .balance-card.view-bal { border-left: 6px solid var(--blue); }
+  /* 「仮の数字」の印。橙+枠+「?」の文字で三重に符号化(色だけに頼らない) */
+  .balance-card .kari-badge {
+    flex-shrink: 0; font-size: 13px; font-weight: 800; color: var(--orange);
+    background: var(--orange-bg); border: 1.5px solid var(--orange); border-radius: 8px; padding: 2px 8px;
+  }
+  .balance-card .b-amount .kari-mark { font-size: 22px; color: var(--orange); margin-left: 4px; }
+  .balance-card .b-kari { color: var(--orange); font-weight: 700; }
 
   /* お知らせ(警告=warn系・案内=blue系。色+枠+アイコン+文字の三重) */
   .notice { font-size: 15px; border-radius: 12px; padding: 10px 12px; margin-bottom: 12px; line-height: 1.7; background: var(--card); border: 1.5px solid var(--line); }
@@ -210,14 +220,17 @@
 
   <div class="zangaku-card" id="zangaku-card"></div>
 
-  <div class="salary-row" id="salary-row"></div>
+  <div class="balance-card view-carry" id="carry-card" hidden></div>
 
-  <div class="balance-card" id="balance-card" hidden></div>
+  <div class="balance-card view-bal" id="balance-card" hidden></div>
 
   <div class="entry-btns">
     <button class="btn btn-primary" id="btn-import" type="button">📋 貼り付けて取り込む</button>
     <button class="btn btn-outline" id="btn-manual" type="button">✏ 1件手入力</button>
   </div>
+
+  <!-- 給料欄は月1回しか触らないため、毎月使う主要ボタンより下に置く(問題7対応) -->
+  <div class="salary-row" id="salary-row"></div>
 
   <div class="list-head" id="list-head"></div>
   <div id="pay-list"></div>
@@ -309,6 +322,7 @@
       <p>3. このアプリの「📋 貼り付けて取り込む」に貼る → 確認 → 残額が出る</p>
       <p>期間は「毎月25日〜翌月24日」で自動的に区切られます(給料日=25日)。</p>
       <p>ChatGPTなど<strong>Claude以外のAI</strong>に読ませるときは、取り込み画面の「🤖 AIへのお願い文を出す」でコピーした文を写真と一緒に送ると、同じ4列が返ってきます。</p>
+      <p>画面には3つの見方が出ます。①<strong>全部払ったら残る</strong>(この期間の給料 − 引き落とし)②<strong>前の期間の残りから引くと</strong>(先月の残り − この期間の引き落とし。今月の給料は足さない見方)③<strong>口座残高から見ると</strong>(残高を入れたときだけ)。</p>
       <p>記録は自動では消えず、<strong>数年分ためられます</strong>(容量は1年で数十KB程度とごくわずか)。画面上部の「◀ ▶」で過去の月をいつでも見返せます。給料は期間ごとに記録されるので、昔の月は当時の給料で計算されます。</p>
     </div>
 
@@ -347,7 +361,8 @@ var MAX_AMOUNT = 99999999; // 金額の業務上の上限: 1億円未満。入�
 
 // ---------- 状態 ----------
 // salaryHistory: 期間開始日(YYYY-MM-25)→その期間の給料。保存のたびに今の期間ぶんを記録し、
-// 過去の月を見返すとき「当時の給料」で計算するために使う(記録は数年分たまる)
+// 過去の月を見返すとき「当時の給料」で計算するために使う(記録は数年分たまる)。
+// 値0は「記録」ではなく「まだ入れていない」扱い(persist で書かず、recordedSalary で読み替える)
 // balance: 給与振込口座の残高スナップショット { amount, date }。null=未設定(任意機能)
 var S = { salary: 0, payments: [], salaryHistory: {}, balance: null };
 var dirty = false;
@@ -505,7 +520,11 @@ function load() {
 }
 function persist() {
   try {
-    S.salaryHistory[currentPeriod().start] = S.salary; // 今の期間の給料を記録(過去の月を当時の給料で見返すため)
+    // 今の期間の給料を記録(過去の月を当時の給料で見返すため)。
+    // 0円は「記録」ではなく「まだ入れていない」なので書き残さない(問題3対応)
+    var pk = currentPeriod().start;
+    if (S.salary > 0) S.salaryHistory[pk] = S.salary;
+    else delete S.salaryHistory[pk];
     localStorage.setItem(STORE_KEY, JSON.stringify({ salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory, balance: S.balance }));
   } catch (e) {
     alert("保存に失敗しました。ブラウザの保存領域が使えない状態です。控え(JSON)をコピーして退避してください。");
@@ -536,6 +555,36 @@ function periodPayments(period) {
   return S.payments.filter(function (p) { return inPeriod(p.date, period); })
     .sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; });
 }
+// その期間の給料の「記録」。0円は「まだ入れていない」とみなして記録なし(null)を返す。
+// 給料の記録あり/なしの判定はこの1か所に集約する(判定がずれると画面ごとに食い違うため)
+function recordedSalary(period) {
+  var v = S.salaryHistory[period.start];
+  return (typeof v === "number" && v > 0) ? v : null;
+}
+// その期間の給料。今回(offset=0)は現在値、それ以外は当時の記録(なければ今の値で代用)
+function periodSalary(period, isCurrent) {
+  if (isCurrent) return S.salary;
+  var r = recordedSalary(period);
+  return r !== null ? r : S.salary;
+}
+// その期間の「全部払ったら残る」= 給料 − 引き落とし合計。繰り越し計算に使う。
+// 計算式は変えず、「この数字にどんな仮定が混じっているか」も一緒に返す(問題1・2・5対応)
+function periodZangaku(offset) {
+  var p = currentPeriod(offset);
+  var rows = periodPayments(p);
+  var total = 0;
+  rows.forEach(function (x) { total += x.amount; });
+  var isCur = offset === 0;
+  var rec = recordedSalary(p);
+  var sal = isCur ? S.salary : (rec !== null ? rec : S.salary); // 代用は今までどおり維持
+  return {
+    period: p, rows: rows, total: total, salary: sal, zan: sal - total,
+    payCount: rows.length,                      // 引き落としの件数(数字の根拠の量)
+    salaryGuess: !isCur && rec === null,        // 給料が「今の給料での代用」= 上にも下にもずれうる
+    unfinished: p.end >= todayStr(),            // まだ終わっていない期間 = 引き落としが増えうる
+    hasRecord: rows.length > 0 || rec !== null  // 0円の記録は「記録あり」に数えない
+  };
+}
 function render() {
   var period = currentPeriod(viewOffset);
   var today = todayStr();
@@ -552,7 +601,8 @@ function render() {
   // この期間の給料: 今回は現在値、過去・先の期間は当時の記録(なければ今の値で代用して知らせる)
   var sal = S.salary, salNote = "";
   if (!isCurrent) {
-    if (Object.prototype.hasOwnProperty.call(S.salaryHistory, period.start)) sal = S.salaryHistory[period.start];
+    var recSal = recordedSalary(period); // 0円は「記録なし」扱い(判定は recordedSalary に集約)
+    if (recSal !== null) sal = recSal;
     else salNote = "この期間の給料の記録がないため、今の給料で計算しています。";
   }
   var zan = sal - total;
@@ -568,9 +618,10 @@ function render() {
   if (!isCurrent) $("btn-period-today").onclick = function () { viewOffset = 0; render(); };
 
   var zLabel = isCurrent ? "全部払ったら残る" : (isPast ? "全部払って残った(記録)" : "全部払ったら残る(見込み)");
-  var html = '<div class="z-label">' + zLabel + "</div>"
+  var html = '<div class="z-label">① ' + zLabel + "</div>"
     + '<div class="z-amount' + (zan < 0 ? " minus" : "") + '">' + yen(zan) + "</div>"
-    + '<div class="z-detail">給料 ' + yen(sal) + " − 引き落とし合計 " + yen(total) + "<br>"
+    + '<div class="z-detail">給料 ' + yen(sal)
+    + (isCurrent ? "(変更は下の「給料(手取り)」から)" : "") + " − 引き落とし合計 " + yen(total) + "<br>"
     + "うち ✓支払済み " + yen(paid) + " / →これから " + yen(upcoming) + "</div>";
   if (zan < 0) {
     html += '<div class="z-minus-note"><span class="warn-ic">!</span><span>' + yen(-zan) + " 足りません(給料より引き落としが多い状態です)</span></div>";
@@ -590,6 +641,40 @@ function render() {
       + (salNote ? '<span style="width:100%;font-size:13px;color:var(--sub)">' + esc(salNote) + "</span>" : "");
   }
 
+  // 繰り越しカード: 前の期間の「全部払ったら残る」から、この期間の引き落としを引いた額。
+  // 前の期間に記録(引き落としか給料)があるときだけ出す(記録がないと意味のない数字になるため)
+  var prev = periodZangaku(viewOffset - 1);
+  var chtml = "";
+  if (prev.hasRecord) {
+    var carry = prev.zan - total;
+    // この数字に混じっている「仮定」を集める。1つでもあれば断定せず「仮の数字」として見せる
+    var why = [];
+    if (prev.salaryGuess) why.push("前の期間の給料の記録がないため、いまの給料 " + yen(prev.salary) + " をあてはめた仮の数字です。給料が変わっていると、その分ずれます。設定で給料を入れ直すと、次の期間からは記録されます。");
+    if (prev.payCount === 0) why.push("前の期間の引き落としの記録が0件です。取り込みを忘れていると、残りは実際より多く出ます。");
+    if (prev.unfinished) why.push("前の期間はまだ終わっていないため、引き落としがこれから増えることがあります。");
+    var kari = why.length > 0;
+    var cLabel = isCurrent ? "前の期間の残りから引くと"
+      : (isPast ? "前の期間の残りから引くと(記録)" : "前の期間の残りから引くと(見込み)");
+    chtml = '<div class="b-label"><span>② ' + cLabel + "</span>"
+        + (kari ? '<span class="kari-badge">? 仮の数字</span>' : "") + "</div>"
+      + '<div class="b-amount' + (carry < 0 && !prev.salaryGuess ? " minus" : "") + '">' + yen(carry)
+        + (kari ? '<span class="kari-mark">?</span>' : "") + "</div>"
+      + '<div class="b-detail">前の期間(' + esc(prev.period.label) + ")の残り " + yen(prev.zan)
+        + " − この期間の引き落とし " + yen(total)
+        + (prev.payCount > 0 ? "(前の期間の引き落とし " + prev.payCount + "件から計算)" : "")
+        + "<br>※この期間の給料" + (salNote ? "(記録がないため分かりません)" : " " + yen(sal)) + " は足していません</div>";
+    if (kari) chtml += '<div class="b-detail b-kari">' + why.map(esc).join("<br>") + "</div>";
+    if (carry < 0) {
+      chtml += prev.salaryGuess
+        ? '<div class="b-detail b-kari">前の期間の給料が記録されていないため、足りるかどうかはまだ分かりません。</div>'
+        : '<div class="b-detail b-old">! ' + yen(-carry) + (isPast
+            ? " 足りませんでした(前の期間の残りだけでは払いきれませんでした)"
+            : " 足りません(前の期間の残りだけでは払いきれない見込みです)") + "</div>";
+    }
+  }
+  $("carry-card").innerHTML = chtml;
+  $("carry-card").hidden = !chtml;
+
   // 口座残高カード(今回の期間で残高が入っているときだけ)。
   // 残高の記録日以降の引き落とし = まだ残高から引かれていないものとして差し引く(済/これからと同じ「当日はこれから」基準)
   var bhtml = "";
@@ -597,7 +682,7 @@ function render() {
     var upcomingFromBal = 0;
     rows.forEach(function (p) { if (p.date >= S.balance.date) upcomingFromBal += p.amount; });
     var bz = S.balance.amount - upcomingFromBal;
-    bhtml = '<div class="b-label"><span>口座残高から見ると</span>'
+    bhtml = '<div class="b-label"><span>③ 口座残高から見ると</span>'
       + '<button class="chip-btn" id="btn-balance-edit" type="button">変更</button></div>'
       + '<div class="b-amount' + (bz < 0 ? " minus" : "") + '">' + yen(bz) + "</div>"
       + '<div class="b-detail">残高 ' + yen(S.balance.amount) + "(" + esc(S.balance.date) + "時点)− 記録日以降の引き落とし " + yen(upcomingFromBal) + "</div>";
