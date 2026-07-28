@@ -81,16 +81,17 @@
   }
   .p-nav:disabled { opacity: 0.35; cursor: default; }
 
-  /* 残額カード(アプリの顔。いちばん大きく) */
+  /* 「今月の給料だけで見ると」カード(今月だけの収支。実際に残る額は残高カードのほう) */
   .zangaku-card {
-    background: var(--card); border: 2px solid var(--ink); border-radius: 14px;
+    background: var(--card); border: 1.5px solid var(--line); border-radius: 14px;
     padding: 12px 16px; margin-bottom: 8px; /* 案C: 余白を控えめに詰めて主要ボタンを画面内へ(文字サイズ・行間は変えない) */
   }
   .zangaku-card .z-label { font-size: 15px; font-weight: 800; color: var(--sub); }
-  .zangaku-card .z-amount { font-size: 40px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3; overflow-wrap: anywhere; }
+  .zangaku-card .z-amount { font-size: 30px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3; overflow-wrap: anywhere; }
   .zangaku-card .z-amount.minus { color: var(--warn); }
   .zangaku-card .z-detail { font-size: 14px; color: var(--sub); line-height: 1.7; margin-top: 4px; }
-  .zangaku-card .z-minus-note {
+  /* 不足の警告ボックス(①「今月の給料だけで見ると」と「最終的に手元に残る」の両方で使う) */
+  .z-minus-note {
     display: flex; align-items: center; gap: 8px; margin-top: 8px;
     background: var(--warn-bg); border: 1.5px solid var(--warn); border-radius: 10px;
     padding: 8px 10px; font-size: 15px; font-weight: 800;
@@ -110,18 +111,17 @@
     border: 1.5px solid var(--line); border-radius: 10px; text-align: right;
   }
 
-  /* 口座残高カード(任意機能。残高を入れたときだけ出る) */
+  /* 「最終的に手元に残る」カード(アプリの顔。いちばん大きく。口座残高を入れたときだけ出る) */
   .balance-card {
-    background: var(--card); border: 1.5px solid var(--line); border-radius: 12px;
-    padding: 8px 12px; margin-bottom: 8px; /* 案C */
+    background: var(--card); border: 2px solid var(--ink); border-radius: 14px;
+    padding: 10px 14px; margin-bottom: 8px; /* 案C */
   }
   .balance-card .b-label { font-size: 15px; font-weight: 800; display: flex; justify-content: space-between; align-items: center; gap: 8px; }
-  .balance-card .b-amount { font-size: 26px; font-weight: 800; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+  .balance-card .b-amount { font-size: 38px; font-weight: 800; font-variant-numeric: tabular-nums; line-height: 1.3; overflow-wrap: anywhere; }
   .balance-card .b-amount.minus { color: var(--warn); }
   .balance-card .b-detail { font-size: 14px; color: var(--sub); line-height: 1.7; }
   .balance-card .b-old { color: var(--warn); font-weight: 700; }
-  /* 3つの見方を見分けるための左帯(問題6対応)。①残額=濃い枠、②繰り越し=橙、③口座残高=青 */
-  .balance-card.view-carry { border-left: 6px solid var(--orange); }
+  /* 2つの見方を見分けるための左帯。💰最終的に手元に残る=青の太帯、📅今月の給料だけで見ると=帯なしの細枠 */
   .balance-card.view-bal { border-left: 6px solid var(--blue); }
   /* 「仮の数字」の印。橙+枠+「?」の文字で三重に符号化(色だけに頼らない) */
   .balance-card .kari-badge {
@@ -199,6 +199,9 @@
   code { font-family: ui-monospace, monospace; font-size: 15px; background: var(--blue-bg); border-radius: 6px; padding: 1px 5px; overflow-wrap: anywhere; }
   .setting-text { font-size: 15px; line-height: 1.8; }
   .setting-text p { margin-bottom: 8px; }
+  /* 「この残高に給料は入っているか」のチェックボックス(指で押しやすい大きさ) */
+  .sal-inc-label { display: flex; align-items: flex-start; gap: 8px; font-size: 15px; font-weight: 800; line-height: 1.6; cursor: pointer; }
+  .sal-inc-label input { flex-shrink: 0; width: 24px; height: 24px; margin-top: 3px; }
 </style>
 </head>
 <body>
@@ -218,11 +221,10 @@
   <div class="period-bar" id="period-bar"></div>
   <div id="period-back"></div>
 
-  <div class="zangaku-card" id="zangaku-card"></div>
-
-  <div class="balance-card view-carry" id="carry-card" hidden></div>
-
+  <!-- いちばん知りたい「実際に手元に残る額」を先頭に置く(口座残高を入れたときだけ出る) -->
   <div class="balance-card view-bal" id="balance-card" hidden></div>
+
+  <div class="zangaku-card" id="zangaku-card"></div>
 
   <div class="entry-btns">
     <button class="btn btn-primary" id="btn-import" type="button">📋 貼り付けて取り込む</button>
@@ -244,7 +246,7 @@
       <div class="hint">カードアプリの「支払予定」画面のスクショを Claude に送ると、下の4列の形で返ってきます。それをここに貼り付けてください。<br>
       <code>引き落とし日,カード名,金額,メモ</code><br>
       例: <code>2026-08-10,楽天,45210,7月分</code><br>
-      銀行アプリの残高画面なら <code>残高,日付,金額</code> の1行になります(貼ると「口座残高から見た残り」も出ます)。</div>
+      銀行アプリの残高画面なら <code>残高,日付,金額</code> の1行になります(貼ると「最終的に手元に残る」額も出ます)。</div>
       <button class="btn btn-outline" id="btn-ai-prompt" type="button" style="margin-bottom:8px">🤖 AIへのお願い文を出す(写真と一緒にAIへ渡す用)</button>
       <div id="ai-prompt-area"></div>
       <textarea id="import-text" placeholder="2026-08-10,楽天,45210,7月分&#10;2026-08-27,三井住友,32000,7月分"></textarea>
@@ -302,7 +304,7 @@
 
     <h3>口座残高(なくてもOK)</h3>
     <div class="panel">
-      <div class="hint">給与振込口座の「いま現在の残高」を入れると、メイン画面に「残高 − これからの引き落とし = 残る見込み」も表示されます。銀行アプリの残高画面のスクショをAIに読ませて取り込むのがかんたんです(<code>残高,日付,金額</code> の1行が返ります)。</div>
+      <div class="hint">給与振込口座の「いま現在の残高」を入れると、メイン画面に「最終的に手元に残る」額(口座残高 ＋ 今月の給料 − 残高に反映されていない引き落とし)も表示されます。銀行アプリの残高画面のスクショをAIに読ませて取り込むのがかんたんです(<code>残高,日付,金額</code> の1行が返ります)。</div>
       <div class="salary-edit" style="margin-top:0">
         <input id="settings-balance" type="text" inputmode="numeric" placeholder="例: 123456">
         <button class="chip-btn" id="btn-balance-save" type="button">決定</button>
@@ -310,6 +312,13 @@
       <div class="field" style="margin-top:8px">
         <label for="settings-balance-date">いつ時点の残高か(スクショを撮った日)</label>
         <input id="settings-balance-date" type="date">
+      </div>
+      <div class="field">
+        <label class="sal-inc-label" for="settings-balance-salary-included">
+          <input id="settings-balance-salary-included" type="checkbox">
+          <span id="settings-balance-salary-text">この残高に今月の給料は入っていますか?</span>
+        </label>
+        <div class="hint" style="margin:4px 0 0">日付から自動で推測して入れてあります。給料日(25日)が土日で<strong>前倒し入金</strong>された月など、25日より前に撮った残高でも給料が入っていることがあります。そのときはチェックを入れてください(チェックあり=給料を足しません)。</div>
       </div>
       <div id="balance-error"></div>
       <button class="btn btn-ghost" id="btn-balance-clear" type="button">残高の記録を消す(表示をやめる)</button>
@@ -322,7 +331,10 @@
       <p>3. このアプリの「📋 貼り付けて取り込む」に貼る → 確認 → 残額が出る</p>
       <p>期間は「毎月25日〜翌月24日」で自動的に区切られます(給料日=25日)。</p>
       <p>ChatGPTなど<strong>Claude以外のAI</strong>に読ませるときは、取り込み画面の「🤖 AIへのお願い文を出す」でコピーした文を写真と一緒に送ると、同じ4列が返ってきます。</p>
-      <p>画面には3つの見方が出ます。①<strong>全部払ったら残る</strong>(この期間の給料 − 引き落とし)②<strong>前の期間の残りから引くと</strong>(先月の残り − この期間の引き落とし。今月の給料は足さない見方)③<strong>口座残高から見ると</strong>(残高を入れたときだけ)。</p>
+      <p>画面には2つの見方が出ます。上が「実際のお金」、下が「今月だけの成績」です。<br>
+      💰<strong>最終的に手元に残る</strong>(青い帯・上) = 口座残高 ＋ 今月の給料 − 残高に反映されていない引き落とし。<u>先月までの貯金も入れた、実際に残るお金</u>です。ふだんはこの数字を見てください(口座残高を入れたときだけ出ます)。<br>
+      「残高に反映されていない引き落とし」は、<strong>残高を撮った日(当日を含む)から今の期間の終わりまで</strong>に出ていくぶんの合計です。一覧で「✓済」になっているものも、残高を撮ったあとに出たものなら含まれます(まだ残高に反映されていないため)。<br>
+      📅<strong>今月の給料だけで見ると</strong>(下) = 今月の給料 − 今月の引き落とし。<u>貯金を入れない、今月だけの収支</u>です。カードが多い月はマイナス(赤字)になりますが、貯金で埋まっていれば上の数字は黒字のままです。</p>
       <p>記録は自動では消えず、<strong>数年分ためられます</strong>(容量は1年で数十KB程度とごくわずか)。画面上部の「◀ ▶」で過去の月をいつでも見返せます。給料は期間ごとに記録されるので、昔の月は当時の給料で計算されます。</p>
     </div>
 
@@ -363,7 +375,12 @@ var MAX_AMOUNT = 99999999; // 金額の業務上の上限: 1億円未満。入�
 // salaryHistory: 期間開始日(YYYY-MM-25)→その期間の給料。保存のたびに今の期間ぶんを記録し、
 // 過去の月を見返すとき「当時の給料」で計算するために使う(記録は数年分たまる)。
 // 値0は「記録」ではなく「まだ入れていない」扱い(persist で書かず、recordedSalary で読み替える)
-// balance: 給与振込口座の残高スナップショット { amount, date }。null=未設定(任意機能)
+// balance: 給与振込口座の残高スナップショット { amount, date, salaryIncluded, salaryIncludedFor }。null=未設定(任意機能)
+//   salaryIncluded    : この残高に「その期間の給料」が既に入っているかの回答(true=足さない)
+//   salaryIncludedFor : その回答が「どの期間の給料について」のものかを表す期間開始日(YYYY-MM-25)。
+//     登録・更新した時点の今回の期間の開始日(currentPeriod().start)を入れる。この定義はコード全体で共通。
+//     💰の計算では salaryIncludedFor が表示中(今回)の期間と一致するときだけ salaryIncluded を信用する
+//     (期間が進むと回答の意味が変わるため。検証7問題1対応)
 var S = { salary: 0, payments: [], salaryHistory: {}, balance: null };
 var dirty = false;
 var lastSavedAt = "";
@@ -371,6 +388,7 @@ var loadWarning = "";
 var editingId = null;      // 編集パネル: null=新規手入力
 var deleteArmed = false;   // 削除の二段階確認
 var pendingRows = null;    // 取り込みプレビュー中の行
+var balSalaryTouched = false; // 設定画面で「給料は入っている?」のチェックを手で動かしたか(自動推測で上書きしないため)
 var viewOffset = 0;        // 表示中の期間(0=今回。-1=1つ前の期間…。表示だけで保存はされない)
 var MIN_OFFSET = -120;     // 過去10年ぶんまで遡れる
 var MAX_OFFSET = 12;       // 先は1年ぶんまで
@@ -456,6 +474,82 @@ function currentPeriod(offset) {
 function inPeriod(dateStr, period) {
   return period.start <= dateStr && dateStr <= period.end; // 文字列比較で日付順が保てる形式
 }
+// 残高日から「この残高に今回の期間の給料が既に入っているか」を推測する(初期値づくり用)。
+// 給料日(=今回の期間の開始)以降に撮った残高なら入っている扱い。
+// あくまで推測なので、確定した答えは S.balance.salaryIncluded(ユーザーが設定で切り替えられる)を使う。
+function guessSalaryIncluded(dateStr) {
+  return String(dateStr == null ? "" : dateStr) >= currentPeriod().start;
+}
+// ある日付が属する給料期間の開始日(YYYY-MM-25)。古い控えの回答をどの期間のものとみなすかに使う
+function periodStartOf(dateStr) {
+  var s = String(dateStr == null ? "" : dateStr);
+  var y = Number(s.slice(0, 4)), m = Number(s.slice(5, 7)), d = Number(s.slice(8, 10));
+  if (!(y > 0 && m >= 1 && m <= 12 && d >= 1)) return null;
+  if (d < PAYDAY) { m -= 1; if (m === 0) { m = 12; y -= 1; } }
+  return y + "-" + pad2(m) + "-" + pad2(PAYDAY);
+}
+// 【判定の集約】この残高について「periodStart の期間の給料が既に入っているか」を答える唯一の場所。
+// 表示・保存・取り込み・古い控えの読み込みが同じ判定を使うようにするための関数(検証8対応)。
+//   answer    : 保存されている回答(無ければ日付からの推測)
+//   fresh     : その回答が periodStart の期間についてのものか(期間が変わると回答は意味を失う)
+//   included  : 実際に「給料を足さない」と判断してよいか(信用できない回答は false=給料を足す=多めに見える側)
+//   suggested : 設定画面のチェックの初期値(古い回答なら periodStart 基準で推測し直す)
+// 新しい残高を取り込むときの「給料は入っているか」の決め方(検証10対応)。
+// 原則: **ユーザーが同じ期間について答えた回答を、日付の推測で勝手に上書きしない**。
+//  - 今回の期間についての回答があり、新しい残高日がいまの残高日以降(=より新しい状況)なら、その回答を引き継ぐ
+//    ・「給料日以降だから入っているはず」と決めつけない(給料日の朝・遅配・入社月では入っていないため)
+//    ・古い日付の残高に差し替えるときは状況が違うので引き継がない
+//  - 回答がない/古い期間の回答しかないときだけ、日付から推測する(給料日以降なら入っている扱い)
+// いずれの場合も設定画面でいつでも直せる。
+// 戻り値 { included: 給料を足さないか, ask: ユーザーに確かめてほしいか }
+// 回答の引き継ぎには向きがある(検証11対応):
+//   ON (もう入っている)  … 日が進んでも成り立つ  → 新しい日付へ引き継げる
+//   OFF(まだ入っていない)… 日が進むと覆りうる    → 古い日付へだけ引き継げる
+// 向きが合わない組み合わせ(OFFのまま日付が進んだ等)は**どちらとも言えない**ので、
+// 日付からの推測(給料日以降なら入っている=給料を足さない控えめな側)を採り、
+// あわせて ask=true にして「? 仮の数字」で確認を促す。黙って決めつけない。
+function resolveSalaryIncludedInfo(newDateStr) {
+  var nd = String(newDateStr);
+  var guess = nd >= currentPeriod().start;
+  if (!S.balance) return { included: guess, ask: false };
+  var info = salaryIncludedInfo(S.balance, currentPeriod().start);
+  var oldDate = String(S.balance.date);
+  // まだ確かめていない推測が残っているなら、残高を入れ直しても確認のお願いは消さない(検証13対応)
+  var pendingAsk = info.fresh && !info.answered;
+
+  // 日付が変わっていないなら、いま画面が使っている値をそのまま保つ。
+  // ここで推測し直すと「金額を直しただけ・決定を押しただけ」で💰が動いてしまう(検証13対応)
+  if (nd === oldDate) return { included: info.included, ask: pendingAsk || !info.fresh };
+
+  if (info.fresh && info.answered) {
+    if (info.answer === true && nd >= oldDate) return { included: true, ask: false };
+    if (info.answer === false && nd <= oldDate) return { included: false, ask: false };
+    // 推測に戻す。保存されていた回答を推測で上書きすることになるので、
+    // 結論が変わるときは必ず確認をお願いする(どちらの向きでも。検証12対応)
+    return { included: guess, ask: info.answer !== guess };
+  }
+  // 未確認の推測しかない / 前の期間の回答しかない → 日付から推測し直し、確認をお願いする
+  return { included: guess, ask: true };
+}
+function salaryIncludedInfo(balance, periodStart) {
+  if (!balance) return { answer: false, fresh: false, included: false, suggested: false };
+  var answer = (typeof balance.salaryIncluded === "boolean")
+    ? balance.salaryIncluded : (String(balance.date) >= periodStart);
+  var fresh = (balance.salaryIncludedFor === periodStart);
+  // answered: 本人が答えた値か。salaryAsk が立っている間は「まだ確かめていない推測」であって回答ではない
+  // (推測を回答として引き継ぐと、確かめないまま事実として固定されてしまう。検証13対応)
+  var answered = balance.salaryAsk !== true;
+  var included = fresh && answer;
+  return {
+    answer: answer,
+    fresh: fresh,
+    answered: answered,
+    included: included,
+    // 設定画面のチェックの初期値は、いま💰が使っている値と必ずそろえる。
+    // ずれていると「開いて決定を押しただけで金額が動く」ことになる(検証13対応)
+    suggested: included
+  };
+}
 
 // ---------- 保存と読み込み ----------
 function sanitizePayment(p) {
@@ -497,7 +591,27 @@ function buildState(raw) {
       var b = raw.balance;
       if (b && typeof b === "object" && typeof b.date === "string" && isRealDate(b.date)
           && typeof b.amount === "number" && Number.isSafeInteger(b.amount) && b.amount >= 0 && b.amount <= MAX_AMOUNT) {
-        out.balance = { amount: b.amount, date: b.date };
+        // salaryIncluded(この残高に給料が入っているかの回答)は真偽値のみ受け入れ、
+        // 無い/真偽以外の古い控えは日付からの推測値で補う(読み飛ばしには数えない)
+        // salaryIncludedFor(その回答がどの期間についてのものか)は実在する25日の日付のみ受け入れる。
+        // 無い/不正なとき(= salaryIncludedFor を持たない修正7以前の控え)は、
+        // その回答を「残高日が属する期間についての回答」とみなして補う(検証8問題3対応)。
+        // 「今回の期間の回答」として扱うと、給料日後に撮った残高+ONの古いデータで給料が二重に足される。
+        // 残高日から補えば、同じ期間内なら回答が活き、別の期間なら信用されず給料を足す(多めに見える安全側)。
+        var hasInc = typeof b.salaryIncluded === "boolean";
+        var incFor = null;
+        if (typeof b.salaryIncludedFor === "string" && isRealDate(b.salaryIncludedFor)
+            && b.salaryIncludedFor.slice(8) === pad2(PAYDAY)) {
+          incFor = b.salaryIncludedFor;
+        } else {
+          incFor = periodStartOf(b.date); // 回答の有無にかかわらず、残高日が属する期間のものとみなす
+        }
+        out.balance = {
+          amount: b.amount, date: b.date,
+          salaryAsk: b.salaryAsk === true, // 真偽以外は「確認不要」に倒す
+          salaryIncluded: hasInc ? b.salaryIncluded : guessSalaryIncluded(b.date),
+          salaryIncludedFor: incFor
+        };
       } else {
         skipped++;
       }
@@ -512,6 +626,12 @@ function load() {
   var raw = null;
   try { raw = JSON.parse(text); } catch (e) {
     loadWarning = "保存データが壊れていて読めなかったため、空の状態で起動しました。設定・使い方の「控えから戻す」で復元できます。(このまま保存すると壊れたデータは上書きされます)";
+    return;
+  }
+  // JSONとしては読めたが控えの形(オブジェクト)ではない場合。黙って空起動すると初回起動と
+  // 見分けが付かないので警告を出す(問題6対応)。※ typeof null は "object" なので別に弾く
+  if (raw === null || typeof raw !== "object" || Array.isArray(raw)) {
+    loadWarning = "保存データが読めなかったため、空の状態で起動しました。設定・使い方の「控えから戻す」で復元できます。(このまま保存すると元のデータは上書きされます)";
     return;
   }
   var r = buildState(raw);
@@ -567,23 +687,15 @@ function periodSalary(period, isCurrent) {
   var r = recordedSalary(period);
   return r !== null ? r : S.salary;
 }
-// その期間の「全部払ったら残る」= 給料 − 引き落とし合計。繰り越し計算に使う。
-// 計算式は変えず、「この数字にどんな仮定が混じっているか」も一緒に返す(問題1・2・5対応)
-function periodZangaku(offset) {
-  var p = currentPeriod(offset);
-  var rows = periodPayments(p);
-  var total = 0;
-  rows.forEach(function (x) { total += x.amount; });
-  var isCur = offset === 0;
-  var rec = recordedSalary(p);
-  var sal = isCur ? S.salary : (rec !== null ? rec : S.salary); // 代用は今までどおり維持
-  return {
-    period: p, rows: rows, total: total, salary: sal, zan: sal - total,
-    payCount: rows.length,                      // 引き落としの件数(数字の根拠の量)
-    salaryGuess: !isCur && rec === null,        // 給料が「今の給料での代用」= 上にも下にもずれうる
-    unfinished: p.end >= todayStr(),            // まだ終わっていない期間 = 引き落としが増えうる
-    hasRecord: rows.length > 0 || rec !== null  // 0円の記録は「記録あり」に数えない
-  };
+// 給料の記録のうち、いちばん新しい月の記録値(0円は記録なし扱い)。
+// 今月の給料がまだ未入力(S.salary=0)のとき、③「最終的に手元に残る」の予測に使う
+function latestRecordedSalary() {
+  var best = null, bestKey = "";
+  for (var k in S.salaryHistory) {
+    var v = S.salaryHistory[k];
+    if (typeof v === "number" && v > 0 && k > bestKey) { bestKey = k; best = v; }
+  }
+  return best; // 記録が1つもなければ null
 }
 function render() {
   var period = currentPeriod(viewOffset);
@@ -607,6 +719,81 @@ function render() {
   }
   var zan = sal - total;
 
+  // ---- 💰「最終的に手元に残る」の計算(今回の期間で口座残高が入っているときだけ) ----
+  //   最終残り = 口座残高 + まだ入っていない今月の給料 − 残高に反映されていない引き落とし
+  // 先月までの貯金(=いまの口座残高)を土台に、今月の給料を足し、これから出ていくぶんを引いた
+  // 「本当に手元に残る額」。📅カードの警告の強さもこの結果で決めるので、描画より先に計算する(問題5対応)。
+  var fin = null;
+  if (isCurrent && S.balance) {
+    // 今月の給料。未入力(0)なら過去の記録から予測して「仮」フラグを立てる。
+    // 予測できる記録もなければ給料0で計算するが、それも「仮の数字」として印を出す(問題3対応)
+    var mSal = S.salary, salGuess = false, salMissing = false;
+    if (mSal <= 0) {
+      var lr = latestRecordedSalary();
+      if (lr !== null) { mSal = lr; salGuess = true; }
+      else { mSal = 0; salMissing = true; }
+    }
+    // 給料が既に残高に入っているかは日付比較ではなくフラグで判定する(問題2対応)。
+    // 給料日(25日)が土日で前倒し入金された月は、25日より前に撮った残高にも給料が入っているため。
+    // ただしこの回答は「どの期間の給料について答えたか」で意味が変わるので、
+    // salaryIncludedFor が表示中(=今回)の期間の開始日と一致するときだけ信用する(検証7問題1対応)。
+    // 一致しないとき(前の期間についての古い回答・不明)は、今回の給料はまだ入っていないものとして
+    // 給料を足し、あわせて「? 仮の数字」バッジを出す(無警告で断定しない)。
+    var salInfo = salaryIncludedInfo(S.balance, period.start); // 判定は共通関数に集約(検証8対応)
+    var salInc = salInfo.included;
+    // 回答が別の期間のもので、かつ「入っている」と答えていた場合だけ注意が要る。
+    // 「入っていない」という回答なら、期間が変わっても給料を足す結論は同じなので仮扱いしない
+    var salStale = !salInfo.fresh && salInfo.answer;
+    var salaryPart = salInc ? 0 : mSal;
+    // 給料の値を計算に使っているか。salInc のときは足さないので、給料が未入力でも結果は変わらない
+    // (=「仮の数字」ではない)。給料0円で足す場合は「0円という仮の値」を使っているので使用とみなす(問題2対応)
+    var salaryUsed = !salInc;
+    // 残高の記録日(当日を含む)から今回の期間の終了日までに出ていく引き落としを、
+    // 期間をまたいで全部引く(問題1対応)。記録日より前のぶんは既に残高に反映済みなので引かない。
+    // 残高日が期間終了日より後(未来日付など)なら範囲が逆転するので0のまま(負にしない)。
+    // 件数と「前の期間の分を含むか」も数えて内訳に出す(検証7問題3対応。額の根拠を同じ画面で確かめられるように)
+    var paymentsPart = 0, paymentsCount = 0, paymentsPrev = false;
+    if (S.balance.date <= period.end) {
+      S.payments.forEach(function (p) {
+        if (p.date >= S.balance.date && p.date <= period.end) {
+          paymentsPart += p.amount;
+          paymentsCount++;
+          if (p.date < period.start) paymentsPrev = true; // 今回の期間より前の日付=前の期間の分
+        }
+      });
+    }
+    // 「仮の数字」の条件: 給料が予測値・給料が未入力・残高が前の期間より古い・給料の回答が古い期間のもの。
+    // ただし給料に関する理由(予測・未入力)は、給料を実際に計算に使っているときだけ立てる(問題2対応)。
+    // 給料を足していない(salInc)ケースでは給料額が結果に影響しないため、仮でも警告でもない
+    var prevStart = currentPeriod(viewOffset - 1).start;
+    var balOld = S.balance.date < prevStart;
+    var why = [];
+    // 理由文は短く保つ(3本並んでも画面に収まるように。検証9のレイアウト対応)
+    if (salGuess && salaryUsed) why.push("今月の給料が未設定のため、前回の記録 " + yen(mSal) + " で計算しています。");
+    if (salMissing && salaryUsed) why.push("今月の給料が未入力のため、0円として計算しています。");
+    if (salStale) why.push("「給料は入っているか」の回答が前の期間のものです。今月の給料は未入金として計算しています。");
+    if (balOld) why.push("残高の記録が古い(前の期間より前)ため、その後の入金が反映されていないおそれがあります。");
+    // 「給料が入っているか」を推測で決めた場合は確かめてもらう(検証11対応)。
+    // ただし期間が変わればその推測は意味を失うので、今回の期間の回答のときだけ出す(検証12対応)
+    var salAsk = S.balance.salaryAsk === true && salInfo.fresh;
+    if (salAsk) why.push("今月の給料がもう入っているか、⚙設定で確かめてください。");
+    fin = {
+      finalLeft: S.balance.amount + salaryPart - paymentsPart,
+      salaryPart: salaryPart,
+      paymentsPart: paymentsPart,
+      paymentsCount: paymentsCount,
+      paymentsPrev: paymentsPrev,
+      salInc: salInc,
+      salAsk: salAsk,
+      kari: (salGuess && salaryUsed) || (salMissing && salaryUsed) || salStale || balOld || salAsk,
+      // 赤い「足りません」を抑えるのは、数字が実際より低く出ているおそれがあるときだけ。
+      // salStale は給料を足す=多めに見える側で計算しているので、それでもマイナスなら不足は確実。
+      // 抑制から外して警告を出す(検証8問題2対応)
+      suppressRed: (salGuess && salaryUsed) || (salMissing && salaryUsed) || balOld,
+      why: why
+    };
+  }
+
   // 期間バー(◀ ▶ で移動。記録は数年分残る)
   $("period-bar").innerHTML =
     '<button class="p-nav" id="btn-period-prev" type="button"' + (viewOffset <= MIN_OFFSET ? " disabled" : "") + '>◀ 前</button>'
@@ -617,14 +804,37 @@ function render() {
   $("period-back").innerHTML = isCurrent ? "" : '<button class="chip-btn" id="btn-period-today" type="button" style="width:100%;margin-bottom:12px">↩ 今回の期間に戻る</button>';
   if (!isCurrent) $("btn-period-today").onclick = function () { viewOffset = 0; render(); };
 
-  var zLabel = isCurrent ? "全部払ったら残る" : (isPast ? "全部払って残った(記録)" : "全部払ったら残る(見込み)");
-  var html = '<div class="z-label">① ' + zLabel + "</div>"
+  var zLabel = isCurrent ? "今月の給料だけで見ると" : (isPast ? "その期間の給料だけで見ると(記録)" : "その期間の給料だけで見ると(見込み)");
+  var html = '<div class="z-label">📅 ' + zLabel + "</div>"
     + '<div class="z-amount' + (zan < 0 ? " minus" : "") + '">' + yen(zan) + "</div>"
     + '<div class="z-detail">給料 ' + yen(sal)
     + (isCurrent ? "(変更は下の「給料(手取り)」から)" : "") + " − 引き落とし合計 " + yen(total) + "<br>"
     + "うち ✓支払済み " + yen(paid) + " / →これから " + yen(upcoming) + "</div>";
+  if (isCurrent) {
+    // 残高カードが出ているときはそちらを案内、出ていないときは残高を入れる案内にする(存在しないカードを指さない)
+    html += '<div class="z-detail">※これは今月だけの収支です(先月までの貯金は入っていません)。'
+      + (S.balance
+          ? '実際に残る額は上の「💰 最終的に手元に残る」。'
+          : '口座残高を入れると、貯金も入れた「実際に残る額」が出せます(⚙ 設定・使い方)。')
+      + "</div>";
+  }
   if (zan < 0) {
-    html += '<div class="z-minus-note"><span class="warn-ic">!</span><span>' + yen(-zan) + " 足りません(給料より引き落としが多い状態です)</span></div>";
+    // 給料が未入力(0円)や、過去の期間で当時の給料の記録がなく今の給料で代用しているときは
+    // 「足りない」と断定できない。赤い警告ではなく注記にする(検証7問題4・検証9対応)
+    var salUncertain = (sal <= 0) || (!isCurrent && recordedSalary(period) === null);
+    if (salUncertain) {
+      html += '<div class="z-detail">※'
+        + (isCurrent ? "給料がまだ入っていないため、この数字は参考です(⚙ 設定・使い方から今月の給料を入れてください)。"
+                     : "この期間の給料の記録がないため(今の給料で計算)、この数字は参考です。")
+        + "</div>";
+    } else if (fin && fin.finalLeft >= 0) {
+      // 💰が黒字なら、この不足は先月までの貯金で埋まっている。赤い警告ではなく注記にして
+      // 「結局どうなのか」を💰に寄せる(問題5対応)
+      html += '<div class="z-detail">※この不足 ' + yen(-zan) + " は先月までの貯金で埋まっています(実際に残るお金は上の💰 "
+        + yen(fin.finalLeft) + (fin.kari ? "・仮の数字" : "") + ")。</div>";
+    } else {
+      html += '<div class="z-minus-note"><span class="warn-ic">!</span><span>' + yen(-zan) + " 足りません(給料より引き落としが多い状態です)</span></div>";
+    }
   }
   $("zangaku-card").innerHTML = html;
 
@@ -641,60 +851,46 @@ function render() {
       + (salNote ? '<span style="width:100%;font-size:13px;color:var(--sub)">' + esc(salNote) + "</span>" : "");
   }
 
-  // 繰り越しカード: 前の期間の「全部払ったら残る」から、この期間の引き落としを引いた額。
-  // 前の期間に記録(引き落としか給料)があるときだけ出す(記録がないと意味のない数字になるため)
-  var prev = periodZangaku(viewOffset - 1);
-  var chtml = "";
-  if (prev.hasRecord) {
-    var carry = prev.zan - total;
-    // この数字に混じっている「仮定」を集める。1つでもあれば断定せず「仮の数字」として見せる
-    var why = [];
-    if (prev.salaryGuess) why.push("前の期間の給料の記録がないため、いまの給料 " + yen(prev.salary) + " をあてはめた仮の数字です。給料が変わっていると、その分ずれます。設定で給料を入れ直すと、次の期間からは記録されます。");
-    if (prev.payCount === 0) why.push("前の期間の引き落としの記録が0件です。取り込みを忘れていると、残りは実際より多く出ます。");
-    if (prev.unfinished) why.push("前の期間はまだ終わっていないため、引き落としがこれから増えることがあります。");
-    var kari = why.length > 0;
-    var cLabel = isCurrent ? "前の期間の残りから引くと"
-      : (isPast ? "前の期間の残りから引くと(記録)" : "前の期間の残りから引くと(見込み)");
-    chtml = '<div class="b-label"><span>② ' + cLabel + "</span>"
-        + (kari ? '<span class="kari-badge">? 仮の数字</span>' : "") + "</div>"
-      + '<div class="b-amount' + (carry < 0 && !prev.salaryGuess ? " minus" : "") + '">' + yen(carry)
-        + (kari ? '<span class="kari-mark">?</span>' : "") + "</div>"
-      + '<div class="b-detail">前の期間(' + esc(prev.period.label) + ")の残り " + yen(prev.zan)
-        + " − この期間の引き落とし " + yen(total)
-        + (prev.payCount > 0 ? "(前の期間の引き落とし " + prev.payCount + "件から計算)" : "")
-        + "<br>※この期間の給料" + (salNote ? "(記録がないため分かりません)" : " " + yen(sal)) + " は足していません</div>";
-    if (kari) chtml += '<div class="b-detail b-kari">' + why.map(esc).join("<br>") + "</div>";
-    if (carry < 0) {
-      chtml += prev.salaryGuess
-        ? '<div class="b-detail b-kari">前の期間の給料が記録されていないため、足りるかどうかはまだ分かりません。</div>'
-        : '<div class="b-detail b-old">! ' + yen(-carry) + (isPast
-            ? " 足りませんでした(前の期間の残りだけでは払いきれませんでした)"
-            : " 足りません(前の期間の残りだけでは払いきれない見込みです)") + "</div>";
-    }
-  }
-  $("carry-card").innerHTML = chtml;
-  $("carry-card").hidden = !chtml;
+  // ②「前の期間の残りから引くと」カードは廃止。その役割は下の「最終的に手元に残る」が引き継ぐ。
 
-  // 口座残高カード(今回の期間で残高が入っているときだけ)。
-  // 残高の記録日以降の引き落とし = まだ残高から引かれていないものとして差し引く(済/これからと同じ「当日はこれから」基準)
+  // 「最終的に手元に残る」カード(計算は上の fin で済ませてある)
   var bhtml = "";
-  if (isCurrent && S.balance) {
-    var upcomingFromBal = 0;
-    rows.forEach(function (p) { if (p.date >= S.balance.date) upcomingFromBal += p.amount; });
-    var bz = S.balance.amount - upcomingFromBal;
-    bhtml = '<div class="b-label"><span>③ 口座残高から見ると</span>'
-      + '<button class="chip-btn" id="btn-balance-edit" type="button">変更</button></div>'
-      + '<div class="b-amount' + (bz < 0 ? " minus" : "") + '">' + yen(bz) + "</div>"
-      + '<div class="b-detail">残高 ' + yen(S.balance.amount) + "(" + esc(S.balance.date) + "時点)− 記録日以降の引き落とし " + yen(upcomingFromBal) + "</div>";
-    if (bz < 0) {
-      bhtml += '<div class="b-detail b-old">! ' + yen(-bz) + " 足りません(残高より引き落としが多い見込みです)</div>";
+  if (fin) {
+    bhtml = '<div class="b-label"><span>💰 最終的に手元に残る</span>'
+        + (fin.kari ? '<span class="kari-badge">? 仮の数字</span>' : "")
+        + '<button class="chip-btn" id="btn-balance-edit" type="button">変更</button></div>'
+      + '<div class="b-amount' + (fin.finalLeft < 0 ? " minus" : "") + '">' + yen(fin.finalLeft)
+        + (fin.kari ? '<span class="kari-mark">?</span>' : "") + "</div>"
+      // 引かれているのは「これから出るぶん」だけでなく「残高を撮ったあとに出たぶん」も含むので、
+      // 一覧の「✓済」と食い違わない言い方にする(問題4対応)
+      + '<div class="b-detail">口座残高 ' + yen(S.balance.amount) + "(" + esc(S.balance.date) + "時点)"
+        + (fin.salInc ? " ＋ 今月の給料(すでに残高に入っています)" : " ＋ 今月の給料 " + yen(fin.salaryPart))
+        + " − 残高に反映されていない引き落とし " + yen(fin.paymentsPart)
+        + (fin.paymentsCount > 0
+            ? "(" + fin.paymentsCount + "件" + (fin.paymentsPrev ? "・前の期間の分も含む" : "") + ")"
+            : "")
+        + "<br>※先月までの貯金も入れた、実際に残るお金です。</div>";
+    if (fin.salInc) {
+      // 推測で決めたとき(確認をお願いしているとき)は断定しない。直下の「確かめてください」と矛盾させない
+      bhtml += '<div class="b-detail">※今月の給料は'
+        + (fin.salAsk ? "この残高に入っているものとして足していません(「変更」で直せます)。"
+                      : "この残高にすでに入っている設定なので足していません(「変更」で直せます)。")
+        + "</div>";
     }
-    if (S.balance.date < period.start) {
-      bhtml += '<div class="b-detail b-old">! 残高の記録が前の期間のもので古いです。新しい残高スクショで更新してください。</div>';
+    if (fin.kari) bhtml += '<div class="b-detail b-kari">' + fin.why.map(esc).join("<br>") + "</div>";
+    if (fin.finalLeft < 0) {
+      // 「? 仮の数字」バッジが出ているとき(給料が予測値・給料が未入力・残高が古い のいずれでも)は
+      // 不足を断定しない。仮と言いながら赤字を断定するのは矛盾するため、控えめな注記行にする(問題3対応)
+      if (fin.suppressRed) {
+        bhtml += '<div class="b-detail b-kari">※仮の数字のため、不足かどうかは確かではありません。</div>';
+      } else {
+        bhtml += '<div class="z-minus-note"><span class="warn-ic">!</span><span>' + yen(-fin.finalLeft) + " 足りません(口座残高と今月の給料をあわせても、引き落としに足りない見込みです)</span></div>";
+      }
     }
-    // 問題2対応: 記録日が未来だと記録日以降の引き落としが少なく数えられ、多く残る見込みに見えてしまう
+    // 残高が未来日付のときの警告は維持(記録日が未来だと出ていくぶんが少なく数えられ、多く残るように見える)
     if (S.balance.date > todayStr()) {
-      bhtml += '<div class="b-detail b-old">! 残高の記録日が未来の日付です。スクショを撮った日になっているか確かめてください(このままだと残る額が多めに見えます)。</div>';
+      // 文言は短く(縦に伸ばしすぎない。検証7問題5対応)
+      bhtml += '<div class="b-detail b-old">! 残高の記録日が未来です(残る額が多めに見えます)。撮った日に直してください。</div>';
     }
   }
   $("balance-card").innerHTML = bhtml;
@@ -754,7 +950,12 @@ function parseImportText(text) {
       if (!bDate) { bad.push({ line: lines[i], reason: "残高の日付が「YYYY-MM-DD」の実在する日付として読めません。" }); continue; }
       var bAmt = parseSalary(cols.length === 3 ? cols[2] : cols[1]);       // 残高は給料と同じ 0〜上限
       if (isNaN(bAmt)) { bad.push({ line: lines[i], reason: "残高の金額が「0〜99,999,999(1億円未満)の整数の円」として読めません。" }); continue; }
-      balance = { amount: bAmt, date: bDate, future: bDate > todayStr() }; // 問題2対応: 未来日付は受理するが警告する
+      // future: 未来日付は受理するが警告する。
+      // salaryIncluded: 日付だけで決めず、同じ期間についてユーザーが自分で答えた回答があれば引き継ぐ
+      // (検証9対応。取り込みのたびに推測で上書きすると、前倒し入金の月の回答が消えて給料1か月ぶんずれる)
+      var salRes = resolveSalaryIncludedInfo(bDate);
+      balance = { amount: bAmt, date: bDate, future: bDate > todayStr(),
+        salaryIncluded: salRes.included, salaryAsk: salRes.ask };
       continue;
     }
     if (cols.length === 3) cols.push("");                      // メモ省略は許す
@@ -811,7 +1012,11 @@ function renderImportPreview() {
 
   html += '<div class="panel">';
   if (bal) {
-    html += '<div class="notice notice-info">💰 口座残高を ' + yen(bal.amount) + "(" + esc(bal.date) + "時点)に更新します。</div>";
+    html += '<div class="notice notice-info">💰 口座残高を ' + yen(bal.amount) + "(" + esc(bal.date) + "時点)に更新します。<br>"
+      + (bal.salaryIncluded
+          ? "この残高には<strong>今月の給料は入っている</strong>扱いで計算します(給料を足しません)。"
+          : "この残高には<strong>今月の給料は入っていない</strong>扱いで計算します(給料を足します)。")
+      + "違うときは⚙設定・使い方の「口座残高」のチェックで直せます。</div>";
     if (bal.future) {
       html += '<div class="notice notice-warn"><div class="n-head"><span class="warn-ic">!</span><span>残高の記録日(' + esc(bal.date) + ")が未来の日付です。スクショを撮った日になっているか確かめてください。</span></div></div>";
     }
@@ -849,6 +1054,7 @@ function renderImportPreview() {
   area.innerHTML = html;
 
   var doImport = function (skipDup) {
+    if (!pendingRows) return; // 取り込み済み(プレビューを消した後)に同じボタンが再度呼ばれた場合は何もしない(問題7対応)
     var added = 0, outsideView = 0;
     var viewP = currentPeriod(viewOffset); // 表示中の期間(問題2対応: 画面に出ない行を数えて知らせる)
     pendingRows.ok.forEach(function (r) {
@@ -859,7 +1065,14 @@ function renderImportPreview() {
     });
     var balUpdated = false;
     if (pendingRows.balance) {
-      S.balance = { amount: pendingRows.balance.amount, date: pendingRows.balance.date };
+      S.balance = {
+        amount: pendingRows.balance.amount, date: pendingRows.balance.date,
+        salaryIncluded: !!pendingRows.balance.salaryIncluded,
+        salaryAsk: !!pendingRows.balance.salaryAsk, // 判断がつかず推測で決めた=設定で確かめてほしい
+        // この回答が「どの期間の給料について」のものかを一緒に残す(検証7問題1対応)。
+        // 期間が変わると意味が変わるため、次の期間では信用せず給料を足し直す
+        salaryIncludedFor: currentPeriod().start
+      };
       balUpdated = true;
     }
     if (added > 0 || balUpdated) {
@@ -867,6 +1080,7 @@ function renderImportPreview() {
       persist(); // 取り込みは操作が重いので即保存(保存バーにも反映される)
     }
     pendingRows = null;
+    $("import-preview").innerHTML = ""; // プレビューを残すと同じボタンを2度押せてしまう(問題7対応)
     $("import-text").value = "";
     $("import-overlay").hidden = true;
     render();
@@ -877,6 +1091,9 @@ function renderImportPreview() {
       }
       if (balUpdated) {
         doneMsg += "💰 口座残高を " + yen(S.balance.amount) + "(" + S.balance.date + "時点)に更新しました。";
+        doneMsg += S.balance.salaryIncluded
+          ? "今月の給料は入っている扱いで計算します(給料を足しません)。違うときは⚙設定・使い方の「口座残高」のチェックで直せます。"
+          : "今月の給料は入っていない扱いで計算します(給料を足します)。違うときは⚙設定・使い方の「口座残高」のチェックで直せます。";
         if (S.balance.date > todayStr()) {
           doneMsg += "! 記録日が未来の日付です。スクショを撮った日になっているか確かめてください。";
         }
@@ -998,11 +1215,33 @@ function showAiPrompt() {
 }
 
 // ---------- 設定・JSON控え ----------
+// 「この残高に今月の給料は入っていますか?」の文言に出す給料額。
+// 未入力なら過去の記録(なければ0)。💰の計算で足される額と同じものを見せる
+function salaryForIncludedLabel() {
+  if (S.salary > 0) return S.salary;
+  var lr = latestRecordedSalary();
+  return lr !== null ? lr : 0;
+}
+function renderBalanceSalaryLabel() {
+  var v = salaryForIncludedLabel();
+  $("settings-balance-salary-text").textContent =
+    v > 0 ? "この残高に今月の給料(" + yen(v) + ")は入っていますか?" : "この残高に今月の給料は入っていますか?";
+}
 function openSettings(focusSalary) {
   $("settings-salary").value = S.salary > 0 ? String(S.salary) : "";
   $("salary-error").innerHTML = "";
   $("settings-balance").value = S.balance ? String(S.balance.amount) : "";
-  $("settings-balance-date").value = S.balance ? S.balance.date : todayStr();
+  var bDate = S.balance ? S.balance.date : todayStr();
+  $("settings-balance-date").value = bDate;
+  // チェックの初期値は共通関数に任せる(検証8問題1対応)。
+  // 保存済みの回答が「今回の期間について」のものならそれを表示し、前の期間の古い回答なら
+  // 今回の期間を基準に推測し直す。こうしないと、開いて何も変えずに決定を押しただけで
+  // 前の期間の回答が今回の回答として保存され、給料1か月ぶんずれる
+  $("settings-balance-salary-included").checked = S.balance
+    ? salaryIncludedInfo(S.balance, currentPeriod().start).suggested
+    : guessSalaryIncluded(bDate);
+  balSalaryTouched = false;
+  renderBalanceSalaryLabel();
   $("balance-error").innerHTML = "";
   $("export-area").innerHTML = "";
   $("import-json-area").innerHTML = "";
@@ -1016,9 +1255,25 @@ function saveBalance() {
     return;
   }
   var d = normalizeDate($("settings-balance-date").value) || todayStr(); // 日付未指定は今日扱い
-  S.balance = { amount: n, date: d };
+  // この残高に今回の期間の給料が入っているか。
+  // ユーザーがチェックを自分で動かしたならその回答をそのまま使う。
+  // 触っていないなら、取り込みとまったく同じ引き継ぎ判定を通す(経路で結論が食い違わないように。検証12対応)
+  var inc, ask = false;
+  if (balSalaryTouched) {
+    inc = !!$("settings-balance-salary-included").checked;
+  } else {
+    var res = resolveSalaryIncludedInfo(d);
+    inc = res.included;
+    ask = res.ask;
+  }
+  // salaryIncludedFor: この回答が「どの期間の給料について」のものか(検証7問題1対応)。
+  // 期間が変わるとこの回答は意味を失うので、💰の計算では今回の期間と一致するときだけ信用する
+  // 自分でチェックを動かして答えたときは確認不要。触っていないなら判定の結果に従う
+  S.balance = { amount: n, date: d, salaryIncluded: inc, salaryIncludedFor: currentPeriod().start, salaryAsk: ask };
   markDirty(); persist();
-  $("balance-error").innerHTML = '<div class="notice notice-info" style="margin-top:8px">✓ 口座残高を ' + yen(n) + "(" + esc(d) + "時点)にしました。</div>"
+  $("balance-error").innerHTML = '<div class="notice notice-info" style="margin-top:8px">✓ 口座残高を ' + yen(n) + "(" + esc(d) + "時点)にしました。"
+    + (inc ? "今月の給料は入っている扱いで計算します(給料を足しません)。" : "今月の給料は入っていない扱いで計算します(給料を足します)。")
+    + "</div>"
     // 問題2対応: 未来の日付は受理するが、気づけるように警告を出す
     + (d > todayStr() ? '<div class="notice notice-warn" style="margin-top:8px"><div class="n-head"><span class="warn-ic">!</span><span>記録日が未来の日付です。スクショを撮った日になっているか確かめてください(このままだと残る額が多めに見えます)。</span></div></div>' : "");
   render();
@@ -1039,6 +1294,7 @@ function saveSalary() {
   S.salary = n;
   markDirty(); persist();
   $("salary-error").innerHTML = '<div class="notice notice-info" style="margin-top:8px">✓ 給料を ' + yen(n) + " にしました。</div>";
+  renderBalanceSalaryLabel(); // 下の「この残高に今月の給料(¥…)は入っていますか?」の額も合わせる
   render();
 }
 function showExport() {
@@ -1098,6 +1354,17 @@ function init() {
   $("btn-salary-save").onclick = saveSalary;
   $("btn-balance-save").onclick = saveBalance;
   $("btn-balance-clear").onclick = clearBalance;
+  // チェックを手で動かしたら、以後この画面では日付からの自動推測で上書きしない(ユーザーの判断を尊重)
+  $("settings-balance-salary-included").onchange = function () { balSalaryTouched = true; };
+  // 日付を変えたときは、まだ手で触っていなければ推測をやり直す(前倒し入金の有無は日付で変わるため)。
+  // ただし「今回の期間についての回答」が既に保存されているときは、それを勝手に上書きしない
+  // (日付だけ直したらチェックが黙って戻る、を防ぐ。検証8問題6対応)
+  $("settings-balance-date").onchange = function () {
+    if (balSalaryTouched) return;
+    var d = normalizeDate($("settings-balance-date").value);
+    // 保存時とまったく同じ判定でチェックを更新する(画面と保存結果を一致させる)
+    if (d) $("settings-balance-salary-included").checked = resolveSalaryIncludedInfo(d).included;
+  };
   $("btn-export").onclick = showExport;
   $("btn-import-json").onclick = showImportJson;
   $("btn-import").onclick = function () { pendingRows = null; renderImportPreview(); $("ai-prompt-area").innerHTML = ""; $("import-overlay").hidden = false; };
