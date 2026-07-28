@@ -197,6 +197,17 @@
   .bad-row .b-reason { font-weight: 800; color: var(--warn); }
   .sum-line { font-size: 16px; font-weight: 800; margin: 10px 0; }
   code { font-family: ui-monospace, monospace; font-size: 15px; background: var(--blue-bg); border-radius: 6px; padding: 1px 5px; overflow-wrap: anywhere; }
+  /* 先の見通し(繰り越し)の1ヶ月ぶん */
+  .fc-row { border-bottom: 1.5px solid var(--line); padding: 8px 2px; }
+  .fc-row:last-child { border-bottom: none; }
+  .fc-row.fc-minus { background: var(--warn-bg); border-radius: 8px; padding-left: 8px; padding-right: 8px; }
+  .fc-head { font-size: 16px; font-weight: 800; display: flex; align-items: center; gap: 6px; flex-wrap: wrap; }
+  .fc-tag { font-size: 12px; font-weight: 800; color: #FFF; background: var(--blue); border-radius: 6px; padding: 1px 6px; }
+  .fc-tag-guess { background: var(--orange); }
+  .fc-line { font-size: 14px; color: var(--sub); line-height: 1.7; font-variant-numeric: tabular-nums; }
+  .fc-cum { font-size: 17px; font-variant-numeric: tabular-nums; }
+  .fc-neg { color: var(--warn); font-weight: 800; }
+
   .setting-text { font-size: 15px; line-height: 1.8; }
   .setting-text p { margin-bottom: 8px; }
   /* 「この残高に給料は入っているか」のチェックボックス(指で押しやすい大きさ) */
@@ -208,7 +219,9 @@
 <div class="wrap" id="main-screen">
   <div class="header">
     <h1>給料残額</h1>
-    <button class="chip-btn" id="btn-settings" type="button">⚙ 設定・使い方</button>
+    <!-- 縦を使わないようヘッダーの小ボタンに置く(主要ボタンを画面の下へ押し出さないため) -->
+    <button class="chip-btn" id="btn-forecast" type="button">📈 見通し</button>
+    <button class="chip-btn" id="btn-settings" type="button">⚙ 設定</button>
   </div>
 
   <div class="save-bar">
@@ -230,6 +243,7 @@
     <button class="btn btn-primary" id="btn-import" type="button">📋 貼り付けて取り込む</button>
     <button class="btn btn-outline" id="btn-manual" type="button">✏ 1件手入力</button>
   </div>
+
 
   <!-- 給料欄は月1回しか触らないため、毎月使う主要ボタンより下に置く(問題7対応) -->
   <div class="salary-row" id="salary-row"></div>
@@ -254,6 +268,15 @@
     </div>
     <div id="import-preview"></div>
     <button class="btn btn-ghost" id="btn-import-close" type="button">閉じる</button>
+  </div>
+</div>
+
+<!-- 先の見通し(繰り越し)パネル -->
+<div class="overlay" id="forecast-overlay" hidden>
+  <div class="wrap">
+    <h2>📈 先の見通し(繰り越し)</h2>
+    <div id="forecast-body"></div>
+    <button class="btn btn-ghost" id="btn-forecast-close" type="button">閉じる</button>
   </div>
 </div>
 
@@ -1196,7 +1219,8 @@ function saveEdit() {
     var p = S.payments.find(function (x) { return x.id === editingId; });
     if (p) { p.date = date; p.card = card; p.amount = amount; p.memo = memo; }
   } else {
-    var dup = S.payments.some(function (x) { return x.date === date && x.card === card && x.amount === amount; });
+    // 重複の見方は取り込みとそろえる(カード名の表記ゆれを無視。cardKey)
+    var dup = S.payments.some(function (x) { return x.date === date && cardKey(x.card) === cardKey(card) && x.amount === amount; });
     if (dup && !deleteArmed) { // deleteArmed を「重複確認済み」フラグに転用しない。専用確認を出す
       var okGo = confirm("同じ「日付+カード名+金額」がすでにあります。それでも追加しますか?");
       if (!okGo) return;
@@ -1213,6 +1237,118 @@ function saveEdit() {
     msg += "この行(" + date + ")は表示中の期間の外なので、この画面には出ません(◀ ▶ でその期間を開くと見られます)。";
   }
   $("load-warning").innerHTML = '<div class="notice notice-info">' + esc(msg) + "</div>" + $("load-warning").innerHTML;
+}
+
+// ---------- 先の見通し(繰り越し) ----------
+// 「今月の残りで来月の赤字をまかなえるか」を確かめるための表。
+// 出発点は💰(口座残高が入っていればそれ)、なければ📅(今月の給料−引き落とし)。
+// そこから月ごとに「＋給料 −引き落とし」を積み上げていく(整数の足し引きのみ)。
+var FORECAST_MAX = 12; // 表に出す上限(明細があってもこれ以上は出さない)
+// 引き落としの記録がある最後の月まで(最低でも来月まで)を表にする。
+// 明細をまだ取り込んでいない先の月まで並べると、給料だけが積み上がって黒字が実際より多く見えるため
+function forecastSpan() {
+  var last = 1; // 最低でも来月まで見せる
+  for (var i = 0; i <= FORECAST_MAX; i++) {
+    if (periodPayments(currentPeriod(i)).length > 0) last = i;
+  }
+  return Math.min(Math.max(last, 1), FORECAST_MAX) + 1; // 月数
+}
+function forecastRows() {
+  var rows = [], today = todayStr();
+  var cum = 0, months = forecastSpan();
+  for (var i = 0; i < months; i++) {
+    var per = currentPeriod(i);
+    var list = periodPayments(per);
+    var total = 0;
+    list.forEach(function (x) { total += x.amount; });
+    var rec = recordedSalary(per);
+    var sal = (i === 0) ? S.salary : (rec !== null ? rec : S.salary);
+    var salGuess = (i === 0) ? false : (rec === null);
+    var monthOnly = sal - total; // その月だけの収支
+    if (i === 0) {
+      // 今月の出発点。口座残高があれば💰(実際に手元に残る額)から始める
+      var startInfo = forecastStart(per, list, total, sal);
+      cum = startInfo.value;
+      rows.push({ per: per, sal: sal, total: total, monthOnly: monthOnly, cum: cum,
+        salGuess: salGuess, note: startInfo.note, isNow: true, count: list.length });
+    } else {
+      cum = cum + sal - total;
+      rows.push({ per: per, sal: sal, total: total, monthOnly: monthOnly, cum: cum,
+        salGuess: salGuess, note: "", isNow: false, count: list.length });
+    }
+  }
+  return rows;
+}
+// 今月の出発点をどこに取るか(💰があればそれ、なければ📅)
+function forecastStart(per, list, total, sal) {
+  if (S.balance) {
+    var info = salaryIncludedInfo(S.balance, per.start);
+    var mSal = S.salary;
+    if (mSal <= 0) { var lr = latestRecordedSalary(); if (lr !== null) mSal = lr; }
+    var salaryPart = info.included ? 0 : mSal;
+    var paymentsPart = 0;
+    if (S.balance.date <= per.end) {
+      S.payments.forEach(function (p) {
+        if (p.date >= S.balance.date && p.date <= per.end) paymentsPart += p.amount;
+      });
+    }
+    return { value: S.balance.amount + salaryPart - paymentsPart,
+      note: "口座残高 " + yen(S.balance.amount) + "(" + S.balance.date + "時点)からの計算です。" };
+  }
+  return { value: sal - total,
+    note: "口座残高を入れていないので、今月の給料だけで計算しています(先月までの貯金は入っていません)。" };
+}
+function renderForecast() {
+  var rows = forecastRows();
+  var html = "";
+  // データが何も無いときに「黒字が続く見込み」と言わない(¥0 は黒字ではない)
+  var hasData = S.salary > 0 || S.payments.length > 0 || !!S.balance;
+  if (!hasData) {
+    $("forecast-body").innerHTML = '<div class="notice notice-info">まだ計算するものがありません。'
+      + "給料を入れて、カードの支払予定を取り込むと、"
+      + "「今月の残りで来月の赤字をまかなえるか」がここに出ます。</div>";
+    return;
+  }
+  // 結論を最初に: どこかでマイナスになるか / いちばん少ない月
+  var firstMinus = null, lowest = rows[0];
+  rows.forEach(function (r) {
+    if (r.cum < 0 && firstMinus === null) firstMinus = r;
+    if (r.cum < lowest.cum) lowest = r;
+  });
+  if (firstMinus) {
+    html += '<div class="notice notice-warn"><div class="n-head"><span class="warn-ic">!</span><span>'
+      + "<strong>" + esc(firstMinus.per.label) + " で " + yen(-firstMinus.cum) + " 足りなくなる見込み</strong>です。"
+      + "それまでの残りでは埋めきれません。</span></div></div>";
+  } else {
+    var lastLabel = rows[rows.length - 1].per.label;
+    html += '<div class="notice notice-info"><strong>' + esc(lastLabel) + " まで黒字が続く見込みです。</strong><br>"
+      + "いちばん少なくなるのは " + esc(lowest.per.label) + " の <strong>" + yen(lowest.cum) + "</strong> です。"
+      + "赤字の月があっても、前の月の残りで埋められています。</div>";
+  }
+  html += '<div class="panel"><div class="hint">' + esc(rows[0].note)
+    + "<br>「その月だけ」は給料−引き落とし。「繰越後の残り」は前の月の残りを引き継いだ金額です。</div>";
+  rows.forEach(function (r) {
+    html += '<div class="fc-row' + (r.cum < 0 ? " fc-minus" : "") + '">'
+      + '<div class="fc-head">' + (r.isNow ? "▶ " : "") + esc(r.per.label)
+        + (r.isNow ? '<span class="fc-tag">今月</span>' : "")
+        + (r.salGuess ? '<span class="fc-tag fc-tag-guess">給料は見込み</span>' : "")
+        + (r.count === 0 && !r.isNow ? '<span class="fc-tag fc-tag-guess">明細まだ</span>' : "")
+      + "</div>"
+      + '<div class="fc-line">給料 ' + yen(r.sal) + " − 引き落とし " + yen(r.total)
+        + (r.count > 0 ? "(" + r.count + "件)" : "(記録なし)")
+        + ' = <span class="' + (r.monthOnly < 0 ? "fc-neg" : "") + '">その月だけ ' + yen(r.monthOnly) + "</span></div>"
+      + '<div class="fc-cum">繰越後の残り <strong>' + yen(r.cum) + "</strong>"
+        + (r.cum < 0 ? ' <span class="fc-neg">足りません</span>' : "") + "</div>"
+      + "</div>";
+  });
+  html += "</div>";
+  // 期間の外(6ヶ月より先)に引き落としが残っているかの注意
+  var lastEnd = rows[rows.length - 1].per.end;
+  var beyond = S.payments.filter(function (p) { return p.date > lastEnd; }).length;
+  if (beyond > 0) {
+    html += '<div class="notice notice-info">' + beyond + "件はこの表より先の日付です(◀ ▶ でその期間を開くと見られます)。</div>";
+  }
+  $("forecast-body").innerHTML = html;
 }
 
 // ---------- AIへのお願い文 ----------
@@ -1415,6 +1551,8 @@ function init() {
   $("btn-import-json").onclick = showImportJson;
   $("btn-import").onclick = function () { pendingRows = null; renderImportPreview(); $("ai-prompt-area").innerHTML = ""; $("import-overlay").hidden = false; };
   $("btn-ai-prompt").onclick = showAiPrompt;
+  $("btn-forecast").onclick = function () { renderForecast(); $("forecast-overlay").hidden = false; };
+  $("btn-forecast-close").onclick = function () { $("forecast-overlay").hidden = true; };
   $("btn-import-close").onclick = function () { pendingRows = null; $("import-overlay").hidden = true; };
   $("btn-parse").onclick = function () { pendingRows = parseImportText($("import-text").value); renderImportPreview(); };
   $("btn-manual").onclick = function () { openEdit(null); };
