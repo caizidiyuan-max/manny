@@ -449,6 +449,17 @@ function parseSalary(v) {
 function cleanMemo(v) {
   return String(v == null ? "" : v).replace(/,/g, "、").trim().slice(0, 200);
 }
+// 重複判定用にカード名を正規化する。表記ゆれ(全角半角・大文字小文字・空白・
+// 「カード」「Card」「クレジット」などの付け足し)を落として比べるための鍵。
+// 保存する名前は変えない(画面にはユーザーが入れたとおりに出す)
+function cardKey(v) {
+  var s = String(v == null ? "" : v).normalize("NFKC").toLowerCase();
+  // 先に「カード」などの付け足し語を落とす。区切り記号(ー を含む)を先に消すと
+  // 「カード」が「カド」になって落とせなくなるため、順番が重要
+  s = s.replace(/(カード|かーど|card|クレジット|credit)/g, "");
+  s = s.replace(/[\s　・･\-ー―‐_]/g, "");
+  return s;
+}
 function cleanCard(v) {
   return String(v == null ? "" : v).replace(/,/g, "、").trim().slice(0, 40);
 }
@@ -971,8 +982,10 @@ function parseImportText(text) {
     if (isNaN(amount)) { bad.push({ line: lines[i], reason: "金額が「1〜99,999,999(1億円未満)の整数の円」として読めません(小数・マイナス・0・文字・1億円以上は不可)。" }); continue; }
     var memo = cleanMemo(cols[3]);
 
-    var key = date + "|" + card + "|" + amount;
-    var dupSaved = S.payments.some(function (p) { return p.date === date && p.card === card && p.amount === amount; });
+    // 重複の見分け方: 日付+カード名+金額。カード名は表記ゆれを吸収して比べる(cardKey)。
+    // 同じ明細の画像を2回読ませたときに、AIが「楽天」「楽天カード」と書き分けても同じ1件とみなす
+    var key = date + "|" + cardKey(card) + "|" + amount;
+    var dupSaved = S.payments.some(function (p) { return p.date === date && cardKey(p.card) === cardKey(card) && p.amount === amount; });
     var dupBatch = !!seen[key];
     seen[key] = true;
     ok.push({
@@ -1007,8 +1020,13 @@ function renderImportPreview() {
     return;
   }
 
-  var total = 0, dupCount = 0, outCount = 0, suspectCount = 0;
-  ok.forEach(function (r) { total += r.amount; if (r.dup) dupCount++; if (r.outside) outCount++; if (r.suspect) suspectCount++; });
+  var total = 0, dupCount = 0, dupTotal = 0, outCount = 0, suspectCount = 0;
+  ok.forEach(function (r) {
+    total += r.amount;
+    if (r.dup) { dupCount++; dupTotal += r.amount; }
+    if (r.outside) outCount++;
+    if (r.suspect) suspectCount++;
+  });
 
   html += '<div class="panel">';
   if (bal) {
@@ -1021,20 +1039,28 @@ function renderImportPreview() {
       html += '<div class="notice notice-warn"><div class="n-head"><span class="warn-ic">!</span><span>残高の記録日(' + esc(bal.date) + ")が未来の日付です。スクショを撮った日になっているか確かめてください。</span></div></div>";
     }
   }
+  // 重複行は既定で「除外」する。同じ明細の画像を2回読ませても二重に入らないようにするため(既定=安全側)
+  var newCount = ok.length - dupCount;
   if (ok.length > 0) {
-    html += '<div class="sum-line">' + ok.length + "件・合計 " + yen(total) + " を取り込みます</div>";
+    html += '<div class="sum-line">' + newCount + "件・合計 " + yen(total - dupTotal) + " を取り込みます"
+      + (dupCount > 0 ? '<br><span style="font-size:14px;font-weight:700;color:var(--sub)">(すでにある ' + dupCount + "件は除きます)</span>" : "")
+      + "</div>";
   }
   ok.forEach(function (r) {
-    html += '<div class="preview-row"><span style="flex:1;min-width:0">' + esc(r.date) + " " + esc(r.card)
+    html += '<div class="preview-row"' + (r.dup ? ' style="opacity:0.6"' : "") + '><span style="flex:1;min-width:0'
+      + (r.dup ? ";text-decoration:line-through" : "") + '">' + esc(r.date) + " " + esc(r.card)
       + (r.memo ? ' <span style="color:var(--sub);font-size:13px">' + esc(r.memo) + "</span>" : "") + "</span>"
-      + "<span>" + yen(r.amount) + "</span>"
-      + (r.dup ? '<span class="p-flag">⚠重複かも</span>' : "")
+      + '<span' + (r.dup ? ' style="text-decoration:line-through"' : "") + ">" + yen(r.amount) + "</span>"
+      + (r.dup ? '<span class="p-flag">除外(すでにある)</span>' : "")
       + (r.outside ? '<span class="p-flag">⏭期間外</span>' : "")
       + "</div>";
   });
   if (dupCount > 0) {
-    html += '<div class="notice notice-warn" style="margin-top:10px"><div class="n-head"><span class="warn-ic">!</span><span>'
-      + dupCount + "件は同じ「日付+カード名+金額」がすでにあります。同じスクショを2回貼っていませんか?</span></div></div>";
+    html += '<div class="notice notice-info" style="margin-top:10px">'
+      + (newCount === 0
+          ? "この明細は<strong>すでに取り込み済み</strong>です(" + dupCount + "件すべて)。二重に入らないよう、取り込まずに閉じてかまいません。"
+          : dupCount + "件は同じ「日付+カード名+金額」がすでにあるため、<strong>自動で除きます</strong>(二重計上を防ぐため)。")
+      + "</div>";
   }
   if (outCount > 0) {
     html += '<div class="notice notice-info" style="margin-top:10px">⏭ の ' + outCount + "件は今回の期間(" + esc(currentPeriod().label) + ")の外です。保存はされ、その日付の期間(◀ ▶ で移動)で表示されます。</div>";
@@ -1043,8 +1069,12 @@ function renderImportPreview() {
     html += '<div class="notice notice-warn" style="margin-top:10px"><div class="n-head"><span class="warn-ic">!</span><span>メモが数字だけの行があります。金額のカンマ(45,210 など)で列がずれていないか、金額とメモを確認してください。</span></div></div>';
   }
   if (dupCount > 0) {
-    html += '<button class="btn btn-primary" id="btn-import-skip-dup" type="button">重複らしき行を除いて取り込む(' + (ok.length - dupCount) + "件)</button>";
-    html += '<button class="btn btn-warn" id="btn-import-all" type="button">重複も含めて全部取り込む(' + ok.length + "件)</button>";
+    // 既定は「除いて取り込む」。同じ明細を2回読ませても二重に入らないようにする。
+    // どうしても同じ内容をもう1件入れたいとき(本当に同額の引き落としが2件ある等)だけ下のボタン
+    if (newCount > 0) {
+      html += '<button class="btn btn-primary" id="btn-import-skip-dup" type="button">取り込む(' + newCount + "件。すでにある " + dupCount + "件は除く)</button>";
+    }
+    html += '<button class="btn btn-ghost" id="btn-import-all" type="button">それでも重複を含めて全部入れる(' + ok.length + "件)</button>";
   } else if (ok.length > 0) {
     html += '<button class="btn btn-primary" id="btn-import-all" type="button">取り込む(' + ok.length + "件" + (bal ? "+残高" : "") + ")</button>";
   } else {
@@ -1104,7 +1134,13 @@ function renderImportPreview() {
     }
   };
   var allBtn = $("btn-import-all");
-  if (allBtn) allBtn.onclick = function () { doImport(false); };
+  if (allBtn) allBtn.onclick = function () {
+    // 重複があるのに「全部入れる」を押したときは、二重計上になることを確かめる(誤タップ防止)
+    if (dupCount > 0) {
+      if (!confirm("すでにある " + dupCount + "件も一緒に入れると、同じ引き落としが二重に数えられます。よろしいですか?")) return;
+    }
+    doImport(false);
+  };
   var skipBtn = $("btn-import-skip-dup");
   if (skipBtn) skipBtn.onclick = function () { doImport(true); };
 }
