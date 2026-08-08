@@ -1706,6 +1706,18 @@
       <button class="btn btn-ghost" id="btn-balance-clear" type="button">残高の記録を消す(表示をやめる)</button>
     </div>
 
+    <h3>カードの引き落とし日を固定(なくてもOK)</h3>
+    <div class="panel">
+      <div class="hint">「楽天は必ず25日」「MUFGカードは必ず10日」のように、カードごとに引き落とし日が決まっているときはここに登録してください。取り込みのときにAI(ChatGPTなど)が画面の別の日付(締め日・確認日など)を読み取ってしまっても、登録した日に<strong>自動で直します</strong>。日付は必ずここに書いた形で反映されるので、どのAIで読み取っても迷いません。</div>
+      <div id="fixed-days-list"></div>
+      <div class="salary-edit" style="margin-top:8px">
+        <input id="fixed-day-card" type="text" placeholder="カード名(例: 楽天)" style="flex:2">
+        <input id="fixed-day-num" type="text" inputmode="numeric" placeholder="日(1〜31)" style="flex:1;text-align:center">
+        <button class="chip-btn" id="btn-fixed-day-add" type="button">追加</button>
+      </div>
+      <div id="fixed-day-error"></div>
+    </div>
+
     <h3>使い方(毎月のルーチン)</h3>
     <div class="panel setting-text">
       <p>1. 25日ごろ、カードアプリの「支払予定」画面をスクショして Claude に送る(2〜3枚まとめてOK)。銀行アプリの<strong>残高画面</strong>も一緒に送ると「今の残高から見た残り」も出せる</p>
@@ -1763,7 +1775,12 @@ var MAX_AMOUNT = 99999999; // 金額の業務上の上限: 1億円未満。入�
 //     登録・更新した時点の今回の期間の開始日(currentPeriod().start)を入れる。この定義はコード全体で共通。
 //     💰の計算では salaryIncludedFor が表示中(今回)の期間と一致するときだけ salaryIncluded を信用する
 //     (期間が進むと回答の意味が変わるため。検証7問題1対応)
-var S = { salary: 0, payments: [], salaryHistory: {}, balance: null };
+// fixedDays: カードごとに引き落とし日を固定するルール。 { <cardKeyで正規化した鍵>: { day: 1〜31, label: 表示用のカード名 } }
+//   AIが写真から読み取った日付(締め日・確認日などカード会社の表示日)は、実際の口座引き落とし日と
+//   ずれることがある(例: 楽天は毎月25日固定なのに、明細画面は27日と表示される)。
+//   ここに登録したカードは、取り込み時に日付の「日」だけをこのルールで自動的に上書きする(年月はAIの読み取りのまま)。
+//   どのAI(ChatGPT・Claude等)で読み取っても、このアプリを通す限り必ず正しい日付になる(=AI側の記憶に頼らない)。
+var S = { salary: 0, payments: [], salaryHistory: {}, balance: null, fixedDays: {} };
 var dirty = false;
 var lastSavedAt = "";
 var loadWarning = "";
@@ -1958,7 +1975,7 @@ function sanitizePayment(p) {
 }
 // 生データ→状態。不正な行は数えて捨てる(画面は必ず起動させる)
 function buildState(raw) {
-  var out = { salary: 0, payments: [], salaryHistory: {}, balance: null }, skipped = 0;
+  var out = { salary: 0, payments: [], salaryHistory: {}, balance: null, fixedDays: {} }, skipped = 0;
   if (raw && typeof raw === "object") {
     if (typeof raw.salary === "number" && Number.isSafeInteger(raw.salary) && raw.salary >= 0 && raw.salary <= MAX_AMOUNT) out.salary = raw.salary;
     if (Array.isArray(raw.payments)) {
@@ -2009,8 +2026,28 @@ function buildState(raw) {
         skipped++;
       }
     }
+    // 固定の引き落とし日: 鍵はカード名を正規化した文字列、値は { day: 1〜31, label: 表示名 }
+    if (raw.fixedDays && typeof raw.fixedDays === "object" && !Array.isArray(raw.fixedDays)) {
+      for (var fk in raw.fixedDays) {
+        var fv = raw.fixedDays[fk];
+        var fLabel = fv && typeof fv.label === "string" ? cleanCard(fv.label) : "";
+        var fDay = fv && typeof fv.day === "number" ? fv.day : NaN;
+        if (fLabel && Number.isInteger(fDay) && fDay >= 1 && fDay <= 31) {
+          out.fixedDays[cardKey(fLabel)] = { day: fDay, label: fLabel };
+        } else {
+          skipped++;
+        }
+      }
+    }
   }
   return { state: out, skipped: skipped };
+}
+// 日付の「年月」はそのまま、「日」だけを day に置き換える。月末を超える日(31日が無い月など)は
+// 実在する最後の日に自動でそろえる(存在しない日付を作らない)
+function applyFixedDay(dateStr, day) {
+  var y = Number(dateStr.slice(0, 4)), m = Number(dateStr.slice(5, 7));
+  var last = new Date(y, m, 0).getDate();
+  return y + "-" + pad2(m) + "-" + pad2(Math.min(day, last));
 }
 function load() {
   var text = null;
@@ -2038,7 +2075,7 @@ function persist() {
     var pk = currentPeriod().start;
     if (S.salary > 0) S.salaryHistory[pk] = S.salary;
     else delete S.salaryHistory[pk];
-    localStorage.setItem(STORE_KEY, JSON.stringify({ salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory, balance: S.balance }));
+    localStorage.setItem(STORE_KEY, JSON.stringify({ salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory, balance: S.balance, fixedDays: S.fixedDays }));
   } catch (e) {
     alert("保存に失敗しました。ブラウザの保存領域が使えない状態です。控え(JSON)をコピーして退避してください。");
     return;
@@ -2377,9 +2414,27 @@ function parseImportText(text) {
       continue;
     }
     var date = normalizeDate(cols[0]);
-    if (!date) { bad.push({ line: lines[i], reason: "引き落とし日が「YYYY-MM-DD」の実在する日付として読めません。" }); continue; }
+    if (!date) {
+      // よくある間違い: 口座残高のつもりで「銀行名,日付,金額」のように書いてしまい、
+      // 先頭が「残高」という決まった言葉になっていないケース(cols[0]が日付ではなく、
+      // cols[1]が日付として読め、残りが金額らしいときに検出)。
+      // どちらの意味だったか勝手に決めつけず、両方の直し方を案内する(データを誤って書き換えないため)
+      var maybeResidual = cols.length === 3 && !!normalizeDate(cols[1]) && mergeCommaAmount([cols[2].trim()]).amount !== null;
+      bad.push({ line: lines[i], reason: maybeResidual
+        ? "引き落とし日が読めません。口座残高のつもりなら、先頭を「残高」にしてください(例: 残高," + cols[1].trim() + "," + cols[2].trim() + ")。引き落としのつもりなら「引き落とし日,カード名,金額」の順にしてください。"
+        : "引き落とし日が「YYYY-MM-DD」の実在する日付として読めません。" });
+      continue;
+    }
     var card = cleanCard(cols[1]);
     if (!card) { bad.push({ line: lines[i], reason: "カード名が空です。" }); continue; }
+    // カードごとの固定引き落とし日(設定・使い方で登録したもの)があれば、「日」だけを上書きする。
+    // AIが読み取った日(締め日・確認日など)より、口座から実際に引かれる日を優先するため
+    var fixedRule = S.fixedDays[cardKey(card)];
+    var dateOriginal = date, dateFixed = false;
+    if (fixedRule && fixedRule.day !== Number(date.slice(8, 10))) {
+      date = applyFixedDay(date, fixedRule.day);
+      dateFixed = true;
+    }
     // 3列目以降のうち、数字だけが続く部分を金額として結合する(カンマ区切りの金額を自動で復元)。
     // 残った列があればメモとして扱う(通常は0〜1列)
     var pMerge = mergeCommaAmount(cols.slice(2));
@@ -2405,7 +2460,8 @@ function parseImportText(text) {
       date: date, card: card, amount: amount, memo: memo,
       dup: dupSaved || dupBatch,
       outside: !inPeriod(date, period),
-      suspect: /^\d+$/.test(memo) && memo !== "" // メモが数字だけ→金額のカンマ割れの疑い
+      suspect: /^\d+$/.test(memo) && memo !== "", // メモが数字だけ→金額のカンマ割れの疑い
+      dateFixed: dateFixed, dateOriginal: dateOriginal // 固定日で上書きしたら、元の日付も見せる(黙って変えない)
     });
   }
   return { ok: ok, bad: bad, balance: balance };
@@ -2433,12 +2489,13 @@ function renderImportPreview() {
     return;
   }
 
-  var total = 0, dupCount = 0, dupTotal = 0, outCount = 0, suspectCount = 0;
+  var total = 0, dupCount = 0, dupTotal = 0, outCount = 0, suspectCount = 0, fixedCount = 0;
   ok.forEach(function (r) {
     total += r.amount;
     if (r.dup) { dupCount++; dupTotal += r.amount; }
     if (r.outside) outCount++;
     if (r.suspect) suspectCount++;
+    if (r.dateFixed) fixedCount++;
   });
 
   html += '<div class="panel">';
@@ -2462,12 +2519,17 @@ function renderImportPreview() {
   ok.forEach(function (r) {
     html += '<div class="preview-row"' + (r.dup ? ' style="opacity:0.6"' : "") + '><span style="flex:1;min-width:0'
       + (r.dup ? ";text-decoration:line-through" : "") + '">' + esc(r.date) + " " + esc(r.card)
-      + (r.memo ? ' <span style="color:var(--sub);font-size:13px">' + esc(r.memo) + "</span>" : "") + "</span>"
+      + (r.memo ? ' <span style="color:var(--sub);font-size:13px">' + esc(r.memo) + "</span>" : "")
+      + (r.dateFixed ? '<br><span style="color:var(--sub);font-size:13px">固定日で ' + esc(r.dateOriginal) + " → " + esc(r.date) + " に直しました</span>" : "")
+      + "</span>"
       + '<span' + (r.dup ? ' style="text-decoration:line-through"' : "") + ">" + yen(r.amount) + "</span>"
       + (r.dup ? '<span class="p-flag">除外(すでにある)</span>' : "")
       + (r.outside ? '<span class="p-flag">⏭期間外</span>' : "")
       + "</div>";
   });
+  if (fixedCount > 0) {
+    html += '<div class="notice notice-info" style="margin-top:10px">' + fixedCount + "件は、設定で登録した固定の引き落とし日に自動でそろえました(⚙設定・使い方で確認・変更できます)。</div>";
+  }
   if (dupCount > 0) {
     html += '<div class="notice notice-info" style="margin-top:10px">'
       + (newCount === 0
@@ -2765,6 +2827,9 @@ function aiPrompt() {
     "",
     "【銀行口座の残高の画面】= 1枚につき1行:",
     "残高,日付,金額",
+    "先頭は必ず「残高」という文字そのままにしてください。銀行名は書かないでください。",
+    "良い例: 残高,2026-07-28,315485",
+    "悪い例: 三菱UFJ銀行,2026-07-28,315485 (銀行名を書くと取り込めません)",
     "",
     "ルール:",
     "- 日付は YYYY-MM-DD の形にする",
@@ -2823,6 +2888,8 @@ function openSettings(focusSalary) {
   balSalaryTouched = false;
   renderBalanceSalaryLabel();
   $("balance-error").innerHTML = "";
+  renderFixedDaysList();
+  $("fixed-day-error").innerHTML = "";
   $("export-area").innerHTML = "";
   $("import-json-area").innerHTML = "";
   $("settings-overlay").hidden = false;
@@ -2858,6 +2925,39 @@ function saveBalance() {
     + (d > todayStr() ? '<div class="notice notice-warn" style="margin-top:8px"><div class="n-head"><span class="warn-ic">!</span><span>記録日が未来の日付です。スクショを撮った日になっているか確かめてください(このままだと残る額が多めに見えます)。</span></div></div>' : "");
   render();
 }
+// ---------- カードの固定引き落とし日 ----------
+function renderFixedDaysList() {
+  var keys = Object.keys(S.fixedDays);
+  var el = $("fixed-days-list");
+  if (keys.length === 0) { el.innerHTML = '<div class="hint">まだ登録がありません。</div>'; return; }
+  el.innerHTML = keys.sort().map(function (k) {
+    var r = S.fixedDays[k];
+    return '<div class="preview-row"><span style="flex:1;min-width:0">' + esc(r.label) + " — 毎月 " + r.day + "日</span>"
+      + '<button class="chip-btn" data-key="' + esc(k) + '" type="button">削除</button></div>';
+  }).join("");
+  Array.prototype.forEach.call(el.querySelectorAll("button[data-key]"), function (btn) {
+    btn.onclick = function () {
+      delete S.fixedDays[btn.getAttribute("data-key")];
+      markDirty(); persist(); renderFixedDaysList();
+    };
+  });
+}
+function addFixedDay() {
+  var label = cleanCard($("fixed-day-card").value);
+  var day = parseSalary($("fixed-day-num").value); // 整数のみの簡易チェックに流用
+  var errs = [];
+  if (!label) errs.push("カード名を入れてください。");
+  if (isNaN(day) || day < 1 || day > 31 || Math.floor(day) !== day) errs.push("日は1〜31の整数で入れてください。");
+  if (errs.length > 0) {
+    $("fixed-day-error").innerHTML = '<div class="notice notice-warn" style="margin-top:8px"><div class="n-head"><span class="warn-ic">!</span><span>' + errs.map(esc).join("<br>") + "</span></div></div>";
+    return;
+  }
+  S.fixedDays[cardKey(label)] = { day: day, label: label }; // 同じカードを登録し直すと上書き
+  markDirty(); persist();
+  $("fixed-day-card").value = ""; $("fixed-day-num").value = "";
+  $("fixed-day-error").innerHTML = '<div class="notice notice-info" style="margin-top:8px">✓ 「' + esc(label) + "」は毎月" + day + "日に固定しました。</div>";
+  renderFixedDaysList();
+}
 function clearBalance() {
   if (!S.balance) { $("balance-error").innerHTML = '<div class="notice notice-info" style="margin-top:8px">残高はもともと入っていません。</div>'; return; }
   S.balance = null;
@@ -2878,7 +2978,7 @@ function saveSalary() {
   render();
 }
 function showExport() {
-  var json = JSON.stringify({ app: "給料残額", version: 1, savedAt: new Date().toISOString(), salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory, balance: S.balance }, null, 1);
+  var json = JSON.stringify({ app: "給料残額", version: 1, savedAt: new Date().toISOString(), salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory, balance: S.balance, fixedDays: S.fixedDays }, null, 1);
   $("export-area").innerHTML =
     '<textarea id="export-text" readonly></textarea>'
     + '<button class="btn btn-outline" id="btn-copy" type="button" style="margin-top:8px">全文コピー</button>'
@@ -2934,6 +3034,7 @@ function init() {
   $("btn-salary-save").onclick = saveSalary;
   $("btn-balance-save").onclick = saveBalance;
   $("btn-balance-clear").onclick = clearBalance;
+  $("btn-fixed-day-add").onclick = addFixedDay;
   // チェックを手で動かしたら、以後この画面では日付からの自動推測で上書きしない(ユーザーの判断を尊重)
   $("settings-balance-salary-included").onchange = function () { balSalaryTouched = true; };
   // 日付を変えたときは、まだ手で触っていなければ推測をやり直す(前倒し入金の有無は日付で変わるため)。
