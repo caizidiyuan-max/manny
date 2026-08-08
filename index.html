@@ -2316,6 +2316,23 @@ function render() {
 }
 
 // ---------- 取り込み(4列パーサ) ----------
+// 金額にカンマが入っていると(例: 15,623)、CSVの区切りと衝突して列がズレ、
+// そのままだと行ごと弾かれてしまう。AIには「カンマを付けない」と指示しているが、
+// それでも付いてしまったときに黙って行を失わないよう、ここで自動修復する。
+// 「千の位区切りのカンマ」だけを狙い撃ちで元に戻す(直後の列以降が数字だけ・
+// 2つ目以降はちょうど3桁、という条件を満たすときだけ結合する)。
+// 条件に合わない(=単なる列数の誤り)ときは、これまでどおり理由つきで弾く。
+function mergeCommaAmount(parts) {
+  var chunks = [], idx = 0;
+  while (idx < parts.length) {
+    var chunk = parts[idx].trim();
+    if (!/^\d+$/.test(chunk)) break;               // 数字だけの列以外は対象にしない(メモ等)
+    if (chunks.length > 0 && chunk.length !== 3) break; // 2つ目以降は必ず3桁(千・百万…の区切り)
+    chunks.push(chunk);
+    idx++;
+  }
+  return { amount: chunks.length > 0 ? chunks.join("") : null, restIndex: idx };
+}
 // 戻り値: { ok: [{date,card,amount,memo,dup,outside,suspect}], bad: [{line,reason}], balance: {amount,date}|null }
 function parseImportText(text) {
   var period = currentPeriod();
@@ -2329,19 +2346,23 @@ function parseImportText(text) {
     var cols = line.split(",");
     // 「残高,日付,金額」の行 = 口座残高の更新(引き落としではない)。複数あれば最後の1行を採用
     if (cols[0].trim() === "残高") {
-      if (cols.length !== 3 && cols.length !== 2) {
-        bad.push({ line: lines[i], reason: "残高の行は「残高,日付,金額」の3列です。金額にカンマ(123,456 など)が入っていませんか?" });
+      var rest = cols.slice(1);
+      // 2列目が実在する日付として読めるかで「日付あり/なし」を見分ける(数字の列と間違えない)
+      var dateGiven = rest.length > 0 && !!normalizeDate(rest[0]);
+      var bDate = dateGiven ? normalizeDate(rest[0]) : todayStr();
+      var amtParts = dateGiven ? rest.slice(1) : rest;
+      if (amtParts.length === 0) {
+        bad.push({ line: lines[i], reason: dateGiven
+          ? "金額が書かれていないようです。「残高,日付,金額」の形で入れてください(日付を省くときは「残高,金額」)。"
+          : "残高の行は「残高,日付,金額」の形です(日付を省くときは「残高,金額」)。" });
         continue;
       }
-      // 問題1対応: 2列で2列目が日付として読めるとき = 金額の書き忘れ。
-      // そのまま進むと日付を金額として検査してしまい「金額が読めません」という分かりにくい案内になる
-      if (cols.length === 2 && normalizeDate(cols[1])) {
-        bad.push({ line: lines[i], reason: "金額が書かれていないようです。「残高,日付,金額」の形で入れてください(日付を省くときは「残高,金額」)。" });
+      var bMerge = mergeCommaAmount(amtParts);
+      if (bMerge.amount === null || bMerge.restIndex !== amtParts.length) {
+        bad.push({ line: lines[i], reason: "残高の金額が読めません。「残高,日付,金額」の形にしてください(金額は数字だけ)。" });
         continue;
       }
-      var bDate = cols.length === 3 ? normalizeDate(cols[1]) : todayStr(); // 日付省略は今日扱い
-      if (!bDate) { bad.push({ line: lines[i], reason: "残高の日付が「YYYY-MM-DD」の実在する日付として読めません。" }); continue; }
-      var bAmt = parseSalary(cols.length === 3 ? cols[2] : cols[1]);       // 残高は給料と同じ 0〜上限
+      var bAmt = parseSalary(bMerge.amount);       // 残高は給料と同じ 0〜上限
       if (isNaN(bAmt)) { bad.push({ line: lines[i], reason: "残高の金額が「0〜99,999,999(1億円未満)の整数の円」として読めません。" }); continue; }
       // future: 未来日付は受理するが警告する。
       // salaryIncluded: 日付だけで決めず、同じ期間についてユーザーが自分で答えた回答があれば引き継ぐ
@@ -2351,18 +2372,28 @@ function parseImportText(text) {
         salaryIncluded: salRes.included, salaryAsk: salRes.ask };
       continue;
     }
-    if (cols.length === 3) cols.push("");                      // メモ省略は許す
-    if (cols.length !== 4) {
-      bad.push({ line: lines[i], reason: "列が4つではありません(" + cols.length + "列)。金額にカンマ(45,210 など)が入っていませんか?" });
+    if (cols.length < 3) {
+      bad.push({ line: lines[i], reason: "列が足りません(" + cols.length + "列)。「引き落とし日,カード名,金額,メモ」の形にしてください。" });
       continue;
     }
     var date = normalizeDate(cols[0]);
     if (!date) { bad.push({ line: lines[i], reason: "引き落とし日が「YYYY-MM-DD」の実在する日付として読めません。" }); continue; }
     var card = cleanCard(cols[1]);
     if (!card) { bad.push({ line: lines[i], reason: "カード名が空です。" }); continue; }
-    var amount = parseAmountStrict(cols[2]);
+    // 3列目以降のうち、数字だけが続く部分を金額として結合する(カンマ区切りの金額を自動で復元)。
+    // 残った列があればメモとして扱う(通常は0〜1列)
+    var pMerge = mergeCommaAmount(cols.slice(2));
+    var amount, memo;
+    if (pMerge.amount !== null) {
+      amount = parseAmountStrict(pMerge.amount);
+      memo = cleanMemo(cols.slice(2 + pMerge.restIndex).join(","));
+    } else {
+      // 数字の列が1つも無い(=カンマ区切りの金額ではない、通常どおりの誤り)。
+      // 元の3列目をそのまま金額としてエラーを出す(従来どおりの案内)
+      amount = parseAmountStrict(cols[2]);
+      memo = cleanMemo(cols.slice(3).join(","));
+    }
     if (isNaN(amount)) { bad.push({ line: lines[i], reason: "金額が「1〜99,999,999(1億円未満)の整数の円」として読めません(小数・マイナス・0・文字・1億円以上は不可)。" }); continue; }
-    var memo = cleanMemo(cols[3]);
 
     // 重複の見分け方: 日付+カード名+金額。カード名は表記ゆれを吸収して比べる(cardKey)。
     // 同じ明細の画像を2回読ませたときに、AIが「楽天」「楽天カード」と書き分けても同じ1件とみなす
@@ -2440,7 +2471,11 @@ function renderImportPreview() {
   if (dupCount > 0) {
     html += '<div class="notice notice-info" style="margin-top:10px">'
       + (newCount === 0
-          ? "この明細は<strong>すでに取り込み済み</strong>です(" + dupCount + "件すべて)。二重に入らないよう、取り込まずに閉じてかまいません。"
+          ? (bal
+              // 請求は全部重複でも、残高の更新だけは別に残っている。「閉じてよい」と言うと
+              // 残高の反映も一緒に捨てられてしまうため、ここでは案内を分ける(重複バグ対応)
+              ? "この明細の引き落としは<strong>すべてすでに取り込み済み</strong>です(" + dupCount + "件)。引き落としを増やさず、<strong>口座残高だけ</strong>を更新できます。"
+              : "この明細は<strong>すでに取り込み済み</strong>です(" + dupCount + "件すべて)。二重に入らないよう、取り込まずに閉じてかまいません。")
           : dupCount + "件は同じ「日付+カード名+金額」がすでにあるため、<strong>自動で除きます</strong>(二重計上を防ぐため)。")
       + "</div>";
   }
@@ -2452,9 +2487,13 @@ function renderImportPreview() {
   }
   if (dupCount > 0) {
     // 既定は「除いて取り込む」。同じ明細を2回読ませても二重に入らないようにする。
-    // どうしても同じ内容をもう1件入れたいとき(本当に同額の引き落としが2件ある等)だけ下のボタン
+    // 請求が全部重複でも、残高の更新(bal)だけは別に残っていることがあるので、
+    // そのときは「残高だけ更新する」ボタンを出す(重複バグ対応。doImport(true) は
+    // 重複行を全部スキップしても pendingRows.balance は必ず適用するため、これで安全に反映できる)
     if (newCount > 0) {
-      html += '<button class="btn btn-primary" id="btn-import-skip-dup" type="button">取り込む(' + newCount + "件。すでにある " + dupCount + "件は除く)</button>";
+      html += '<button class="btn btn-primary" id="btn-import-skip-dup" type="button">取り込む(' + newCount + "件。すでにある " + dupCount + "件は除く" + (bal ? "+残高" : "") + ")</button>";
+    } else if (bal) {
+      html += '<button class="btn btn-primary" id="btn-import-skip-dup" type="button">残高だけ更新する(重複する ' + dupCount + "件は含めません)</button>";
     }
     html += '<button class="btn btn-ghost" id="btn-import-all" type="button">それでも重複を含めて全部入れる(' + ok.length + "件)</button>";
   } else if (ok.length > 0) {
@@ -2732,7 +2771,7 @@ function aiPrompt() {
     "- 引き落とし日は画面の引き落とし予定日をそのまま。年が書かれていない日付(8/10 など)は、今日(" + todayStr() + ")から見て直近の未来の日付として年を補う",
     "- 残高の日付は、画面に「○月○日時点」などと書かれていればその日付。書かれていなければ今日(" + todayStr() + ")にする",
     "- カード名は「楽天」「三井住友」のような呼び名だけ。カード番号・有効期限・口座番号は絶対に書かない",
-    "- 金額は整数の円。カンマ・¥マーク・小数は書かない",
+    "- 金額は整数の円。カンマ・¥マーク・小数は書かない(良い例: 15623 / 悪い例: 15,623 や ¥15,623)",
     "- メモは任意(「8月分」など)。メモの中にカンマ「,」は使わない(「、」に置き換える)",
     "- 支払予定の行と残高の行が混ざってもよい。そのまま続けて書く",
     "- 読み取れない画像があれば、最後に「○枚目は読み取れませんでした」と1行だけ書く"
