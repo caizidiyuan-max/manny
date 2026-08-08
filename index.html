@@ -1053,6 +1053,58 @@
     overflow-wrap: anywhere;
   }
   .fc-neg { color: var(--warn); font-weight: 900; }
+  .fc-big-label {
+    min-width: 0;
+    margin-top: 6px;
+    color: var(--sub);
+    font-size: 13px;
+    font-weight: 800;
+  }
+  .fc-big {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 8px;
+    min-width: 0;
+    color: var(--ink);
+    font-size: 28px;
+    font-weight: 900;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.3;
+    overflow-wrap: anywhere;
+  }
+  .fc-big.fc-neg { color: var(--warn); }
+  .fc-neg-tag {
+    font-size: 12px;
+    font-weight: 900;
+    color: #FFF;
+    background: var(--warn);
+    border-radius: 7px;
+    padding: 2px 8px;
+  }
+  .fc-formula {
+    min-width: 0;
+    margin-top: 3px;
+    color: var(--sub);
+    font-size: 13px;
+    font-weight: 650;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
+  .fc-eq { color: var(--ink); font-weight: 900; }
+  .fc-ref {
+    min-width: 0;
+    margin-top: 9px;
+    padding: 9px 11px;
+    border-radius: 12px;
+    background: var(--blue-bg);
+    color: var(--sub);
+    font-size: 13px;
+    font-weight: 650;
+    line-height: 1.7;
+    overflow-wrap: anywhere;
+  }
 
   @media (max-width: 374px) {
     .wrap { padding-inline: 10px; }
@@ -2714,8 +2766,8 @@ function forecastSpan() {
   return Math.min(Math.max(last, 1), FORECAST_MAX) + 1; // 月数
 }
 function forecastRows() {
-  var rows = [], today = todayStr();
-  var cum = 0, months = forecastSpan();
+  var rows = [], months = forecastSpan();
+  var cum = 0;
   for (var i = 0; i < months; i++) {
     var per = currentPeriod(i);
     var list = periodPayments(per);
@@ -2724,23 +2776,27 @@ function forecastRows() {
     var rec = recordedSalary(per);
     var sal = (i === 0) ? S.salary : (rec !== null ? rec : S.salary);
     var salGuess = (i === 0) ? false : (rec === null);
-    var monthOnly = sal - total; // その月だけの収支
+    var monthOnly = sal - total; // その月だけの収支(給料−引き落とし。貯金は考えない)
+    var prevCum = (i === 0) ? null : cum; // この行の計算のもとになる「前の月の残り」(先頭行は無し)
     if (i === 0) {
-      // 今月の出発点。口座残高があれば💰(実際に手元に残る額)から始める
-      var startInfo = forecastStart(per, list, total, sal);
+      // 今月だけは出発点が2通りある。口座残高を入れていれば実際のお金(💰)から、
+      // 入れていなければ給料だけの計算(📅)から。学生でも式をそのまま読めば分かるように、
+      // 使った数字をすべて breakdown に残す(黙って計算しない)
+      var startInfo = forecastStart(per, sal, total);
       cum = startInfo.value;
-      rows.push({ per: per, sal: sal, total: total, monthOnly: monthOnly, cum: cum,
-        salGuess: salGuess, note: startInfo.note, isNow: true, count: list.length });
+      rows.push({ per: per, sal: sal, total: total, monthOnly: monthOnly, cum: cum, prevCum: prevCum,
+        salGuess: salGuess, isNow: true, count: list.length, start: startInfo });
     } else {
-      cum = cum + sal - total;
-      rows.push({ per: per, sal: sal, total: total, monthOnly: monthOnly, cum: cum,
-        salGuess: salGuess, note: "", isNow: false, count: list.length });
+      cum = prevCum + sal - total;
+      rows.push({ per: per, sal: sal, total: total, monthOnly: monthOnly, cum: cum, prevCum: prevCum,
+        salGuess: salGuess, isNow: false, count: list.length, start: null });
     }
   }
   return rows;
 }
-// 今月の出発点をどこに取るか(💰があればそれ、なければ📅)
-function forecastStart(per, list, total, sal) {
+// 今月(先頭行)の出発点をどこに取るか(💰口座残高があればそれ、なければ📅給料だけ)。
+// 使った数字を全部返す。「その月だけ」の数字と違う理由をあとで式として見せるため
+function forecastStart(per, sal, total) {
   if (S.balance) {
     var info = salaryIncludedInfo(S.balance, per.start);
     var mSal = S.salary;
@@ -2752,11 +2808,13 @@ function forecastStart(per, list, total, sal) {
         if (p.date >= S.balance.date && p.date <= per.end) paymentsPart += p.amount;
       });
     }
-    return { value: S.balance.amount + salaryPart - paymentsPart,
-      note: "口座残高 " + yen(S.balance.amount) + "(" + S.balance.date + "時点)からの計算です。" };
+    return {
+      kind: "balance", value: S.balance.amount + salaryPart - paymentsPart,
+      balanceAmount: S.balance.amount, balanceDate: S.balance.date,
+      salaryPart: salaryPart, paymentsPart: paymentsPart, salaryIncluded: info.included
+    };
   }
-  return { value: sal - total,
-    note: "口座残高を入れていないので、今月の給料だけで計算しています(先月までの貯金は入っていません)。" };
+  return { kind: "salary", value: sal - total };
 }
 function renderForecast() {
   var rows = forecastRows();
@@ -2785,21 +2843,53 @@ function renderForecast() {
       + "いちばん少なくなるのは " + esc(lowest.per.label) + " の <strong>" + yen(lowest.cum) + "</strong> です。"
       + "赤字の月があっても、前の月の残りで埋められています。</div>";
   }
-  html += '<div class="panel"><div class="hint">' + esc(rows[0].note)
-    + "<br>「その月だけ」は給料−引き落とし。「繰越後の残り」は前の月の残りを引き継いだ金額です。</div>";
+  // 見方の説明(学生でも読めば分かる短い凡例。数式で見せる方針をここで宣言する)
+  html += '<div class="panel"><div class="hint">💰 の数字がいちばん大事です(このアプリが出す「本当の答え」)。'
+    + "<strong>①請求される予定金額が引かれて余りが出る → ②その余りに給料が足される</strong>、という順番で"
+    + "1行ずつ書いています。余った分はそのまま来月に引き継がれ、また①②が繰り返されます。</div>";
   rows.forEach(function (r) {
     html += '<div class="fc-row' + (r.cum < 0 ? " fc-minus" : "") + '">'
       + '<div class="fc-head">' + (r.isNow ? "▶ " : "") + esc(r.per.label)
         + (r.isNow ? '<span class="fc-tag">今月</span>' : "")
         + (r.salGuess ? '<span class="fc-tag fc-tag-guess">給料は見込み</span>' : "")
         + (r.count === 0 && !r.isNow ? '<span class="fc-tag fc-tag-guess">明細まだ</span>' : "")
-      + "</div>"
-      + '<div class="fc-line">給料 ' + yen(r.sal) + " − 引き落とし " + yen(r.total)
-        + (r.count > 0 ? "(" + r.count + "件)" : "(記録なし)")
-        + ' = <span class="' + (r.monthOnly < 0 ? "fc-neg" : "") + '">その月だけ ' + yen(r.monthOnly) + "</span></div>"
-      + '<div class="fc-cum">繰越後の残り <strong>' + yen(r.cum) + "</strong>"
-        + (r.cum < 0 ? ' <span class="fc-neg">足りません</span>' : "") + "</div>"
       + "</div>";
+
+    // ① いちばん大事な数字(💰実際に残る見込み)を、そこに至る2つの段階(①請求を引く ②給料を足す)に
+    // 分けて見せる。「残高→請求される予定金額が引かれる→余った分は来月の給料と合わせて次に使われる」
+    // というお金の流れそのままの順番で書く(ユーザー要望: 学生でも分かるように)
+    var steps = [], bigLabel = "💰 実際に残る見込み";
+    if (r.isNow && r.start && r.start.kind === "balance") {
+      var afterCharge = r.start.balanceAmount - r.start.paymentsPart;
+      steps.push("① 口座残高 " + yen(r.start.balanceAmount) + "(" + esc(r.start.balanceDate) + "時点)"
+        + " − これから引き落とされる予定 " + yen(r.start.paymentsPart) + " = 余り " + yen(afterCharge));
+      if (r.start.salaryPart > 0) {
+        steps.push("② 余り " + yen(afterCharge) + " ＋ まだ入っていない今月の給料 " + yen(r.start.salaryPart) + " = " + yen(r.cum));
+      } else {
+        steps.push("② 今月の給料はすでにこの残高に入っているので、①の余り " + yen(afterCharge) + " がそのまま = " + yen(r.cum));
+      }
+    } else if (r.isNow) {
+      bigLabel = "📅 今月の給料だけで見ると";
+      steps.push("給料 " + yen(r.sal) + " − 引き落とし " + yen(r.total) + (r.count > 0 ? "(" + r.count + "件)" : "(記録なし)") + " = " + yen(r.cum));
+    } else {
+      // 来月以降: 前の月の余りに、その月の給料日(25日)に入る給料を足してから、その月の請求を引く
+      var withSalary = r.prevCum + r.sal;
+      steps.push("① 前の月の残り " + yen(r.prevCum) + " ＋ この月の給料 " + yen(r.sal) + " = 使えるお金 " + yen(withSalary));
+      steps.push("② 使えるお金 " + yen(withSalary) + " − この月の引き落とし " + yen(r.total)
+        + (r.count > 0 ? "(" + r.count + "件)" : "(記録なし)") + " = " + yen(r.cum));
+    }
+    html += '<div class="fc-big-label">' + bigLabel + "</div>"
+      + '<div class="fc-big' + (r.cum < 0 ? " fc-neg" : "") + '">' + yen(r.cum)
+        + (r.cum < 0 ? '<span class="fc-neg-tag">足りません</span>' : "") + "</div>"
+      + '<div class="fc-formula">' + steps.join("<br>") + "</div>";
+
+    // ② 今月・残高ありのときだけ、「給料だけならこう」という参考の数字も添える(混同しないよう小さく)
+    if (r.isNow && r.start && r.start.kind === "balance") {
+      html += '<div class="fc-ref">📅 参考(貯金を考えない今月だけの成績): 給料 ' + yen(r.sal) + " − 引き落とし " + yen(r.total)
+        + (r.count > 0 ? "(" + r.count + "件)" : "(記録なし)") + ' = <span class="' + (r.monthOnly < 0 ? "fc-neg" : "") + '">'
+        + yen(r.monthOnly) + "</span>という成績のうえで、口座残高をもとに計算し直したものが上の💰です。</div>";
+    }
+    html += "</div>";
   });
   html += "</div>";
   // 期間の外(6ヶ月より先)に引き落としが残っているかの注意
