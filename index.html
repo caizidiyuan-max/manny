@@ -11,6 +11,13 @@
      色弱対応配色(青と橙が軸。赤と緑を並べない)。
      すべての区別を「色+形(アイコン)+文字」の三重で符号化。
      UD書体優先・基本17px・行間1.75・コントラスト7:1以上。
+
+     [2026-08-14 注記] このブロックはCSSカスケードで後から
+     読み込まれる「案3 暮らしの家計ノート」ブロック(このファイル
+     の後方、`--blue`/`--orange`/`--warn` を再定義している箇所)に
+     上書きされており、実際に画面へ出ているのはこのブロックの色
+     ではない。実際に効いている配色・色弱対応(グレースケールでの
+     輝度差)についての説明は「案3」ブロックのコメントを参照。
      =============================================== */
   :root {
     color-scheme: light;
@@ -1144,12 +1151,15 @@
     --sub: #3F474F;
     --line: #B6AA96;
     --line-soft: #DDD2C2;
-    --blue: #0B5555;
-    --blue-deep: #073F3F;
+    /* 白黒(グレースケール)で見ても区別できるよう、blue/orange/warnの3色は
+       明度(輝度)を意図的に大きく離してある(約80 / 53 / 32、255段階中)。
+       2026-08-14 検証・調査に基づく調整。色の意味は変えていない。 */
+    --blue: #0D6363;
+    --blue-deep: #053131;
     --blue-bg: #E6F2F0;
-    --orange: #6B3900;
+    --orange: #5A2F00;
     --orange-bg: #FFF0C7;
-    --warn: #762613;
+    --warn: #4A160B;
     --warn-bg: #FFF0EA;
   }
 
@@ -1246,6 +1256,26 @@
     border-color: var(--blue);
     background: var(--blue-bg);
     color: var(--ink);
+  }
+  /* 案内アイコン(丸地に白の「i」。警告アイコン.warn-icと同じ丸バッジの見た目で、
+     色が見えなくても「警告ではなく案内」だと形と文字で分かるようにする) */
+  .notice-info::before {
+    content: "i";
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 20px;
+    height: 20px;
+    margin-right: 7px;
+    vertical-align: -4px;
+    border-radius: 50%;
+    background: var(--blue);
+    color: #FFF;
+    font-size: 13px;
+    font-weight: 900;
+    font-style: italic;
+    line-height: 1;
   }
   .notice-warn {
     border-color: var(--warn);
@@ -1534,11 +1564,17 @@
   }
   .badge-done {
     border-color: var(--blue);
+    border-style: solid;
+    border-width: 2px;
+    border-radius: 999px;
     background: var(--blue-bg);
     color: var(--blue);
   }
   .badge-todo {
     border-color: var(--orange);
+    border-style: dashed;
+    border-width: 2px;
+    border-radius: 4px;
     background: var(--orange-bg);
     color: var(--orange);
   }
