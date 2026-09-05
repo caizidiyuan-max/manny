@@ -1854,6 +1854,9 @@
     font-weight: 700;
   }
   .chip-btn:active { background: rgba(89, 128, 166, 0.14); transform: none; }
+  /* 2026-08-28 問題3: 第3層の .b-label .chip-btn { background:#FFFEFA }(詳細度0,2,0)が
+     上の .chip-btn(0,1,0)に勝つカスケード漏れ対策。💰カードの「変更」も透明背景に揃える */
+  .b-label .chip-btn { background: transparent; }
 
   .save-bar {
     margin: 0 0 12px;
@@ -1889,7 +1892,7 @@
     padding: 0;
     border: 0;
     background: transparent;
-    color: rgba(29, 31, 32, 0.5);
+    color: var(--sub); /* 2026-08-28 問題2: 透過0.5(3.16:1)→実色 #4c5052(7.28:1)に濃度上げ */
     font-size: 12px;
     font-weight: 700;
   }
@@ -2038,7 +2041,7 @@
     justify-content: space-between;
     gap: 8px;
     padding-top: 4px;
-    color: rgba(29, 31, 32, 0.55);
+    color: var(--sub); /* 2026-08-28 問題2: 透過0.55(3.64:1)→実色 #4c5052(7.28:1)に濃度上げ */
     font-size: 12.5px;
     font-variant-numeric: tabular-nums;
   }
@@ -2111,8 +2114,23 @@
   .cmp-bar + .cmp-bar { margin-top: 3px; }
   .cmp-fill { display: flex; align-items: center; min-width: 0; padding-left: 7px; }
   .cmp-sal .cmp-fill { background: var(--acc-200); color: var(--acc-800); }
-  .cmp-out .cmp-fill { background: var(--acc); color: #f2f2f3; }
+  /* 2026-08-28 問題2: 塗りを #5980a6(白文字と3.71:1)→ accent-700 #416180(5.78:1)に濃度上げ */
+  .cmp-out .cmp-fill { background: var(--acc-700); color: #f2f2f3; }
   .cmp-fill span { font-size: 12px; font-weight: 700; white-space: nowrap; font-variant-numeric: tabular-nums; }
+  /* 2026-08-28 問題1: 塗り幅が40%未満のときはラベルを塗りの右外側に濃色で出す
+     (細いバー・幅0%でも「引き落とし 0」等が読めるように。カラム地 #f2f2f3 上の
+     var(--ink) #1d1f20 は14.9:1) */
+  .cmp-label-out {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    padding-left: 7px;
+    color: var(--ink);
+    font-size: 12px;
+    font-weight: 700;
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
 
   /* 説明文の折りたたみ(リデザイン方針: 長い説明は折りたたみへ。＋/×で開閉) */
   details.more { margin-top: 10px; border: 1px solid var(--line); }
@@ -2145,11 +2163,12 @@
   /* 幅の狭い画面で「貼り付けて取り込む」が2行に折り返さないよう詰める */
   .entry-btns > .btn { padding-inline: 8px; font-size: 15px; }
   .btn-primary {
-    border: 1px solid var(--acc);
-    background: var(--acc);
+    /* 2026-08-28 問題2: #5980a6+白文字(3.71:1)→ accent-700 #416180(5.78:1)に濃度上げ */
+    border: 1px solid var(--acc-700);
+    background: var(--acc-700);
     color: #f2f2f3;
   }
-  .btn-primary:active { background: var(--acc-700); }
+  .btn-primary:active { background: var(--acc-800); }
   .btn-outline {
     border: 1px solid var(--line);
     background: transparent;
@@ -2219,7 +2238,7 @@
     color: var(--ink);
   }
   .pay-date {
-    color: rgba(29, 31, 32, 0.58);
+    color: var(--sub); /* 2026-08-28 問題2: 透過0.58(3.97:1)→実色 #4c5052(7.28:1)に濃度上げ */
     font-family: var(--font-num);
     font-weight: 600;
     font-size: 15px;
@@ -2620,20 +2639,22 @@ function bandHtml(fin, period) {
   items.sort(function (a, b) { return b.amount - a.amount; });
   var totalAll = fin.finalLeft + fin.paymentsPart; // = 口座残高 + 足した給料
   var H = 306, MINH = 34;
-  var shown = [], restAmt = 0, restCnt = 0;
+  var shown = [], restAmt = 0, restCnt = 0, restOnly = null;
   items.forEach(function (p) {
     // 金額の大きい順に最大3件まで個別表示。一度集約が始まったら以降は全部「他N件」へ
     var h = H * p.amount / totalAll;
     if (shown.length < 3 && restCnt === 0 && h >= MINH) shown.push(p);
-    else { restAmt += p.amount; restCnt++; }
+    else { restAmt += p.amount; restCnt++; restOnly = p; }
   });
   var rowsHtml = shown.map(function (p) {
     return '<div class="band-row" style="flex:' + p.amount + '"><span class="br-label">' + esc(p.card)
       + '</span><span class="br-amt">' + num(p.amount) + "</span></div>";
   }).join("");
   if (restCnt > 0) {
-    rowsHtml += '<div class="band-row band-rest" style="flex:' + restAmt + '"><span class="br-label">他' + restCnt
-      + '件</span><span class="br-amt">' + num(restAmt) + "</span></div>";
+    // 2026-08-28 問題4: 集約対象が1件だけなら「他1件」ではなくそのカード名を出す(色は band-rest のまま)
+    var restLabel = restCnt === 1 ? esc(restOnly.card) : "他" + restCnt + "件";
+    rowsHtml += '<div class="band-row band-rest" style="flex:' + restAmt + '"><span class="br-label">' + restLabel
+      + '</span><span class="br-amt">' + num(restAmt) + "</span></div>";
   }
   return '<div class="band-wrap">'
     + '<div class="band-head">口座残高' + (fin.salaryPart > 0 ? "＋今月の給料" : "") + " " + num(totalAll) + "円 の中身</div>"
@@ -2652,9 +2673,20 @@ function cmpBarsHtml(sal, total, tewTotal) {
   if (mx <= 0) return "";
   var wS = Math.round(sal / mx * 1000) / 10;
   var wO = Math.round(out / mx * 1000) / 10;
+  // 2026-08-28 問題1: 引き落としバー(濃塗り+白文字)は、塗りが細いと
+  // 白文字が塗りの外の薄い地にはみ出して読めない(幅0%だと完全に不可視)。
+  // 65%未満のときはラベルを塗りの右外側に濃色(.cmp-label-out)で出す。
+  // (再検証の問題A対応・2026-08-28: 手渡しあり月の長いラベルは40%でも50%でも
+  //  はみ出す端末幅(320px)があるため、最長ラベル156pxが320px幅の塗りにも収まる
+  //  65%まで引き上げ。実幅判定は複雑になるのでしない)
+  // 給料バーは淡青塗り+濃色文字なので、はみ出しても読める(従来どおり)
+  var outLabel = "引き落とし" + (tewTotal > 0 ? "＋手渡し" : "") + " " + num(out);
+  var outBar = wO >= 65
+    ? '<div class="cmp-bar cmp-out"><div class="cmp-fill" style="width:' + wO + '%"><span>' + outLabel + "</span></div></div>"
+    : '<div class="cmp-bar cmp-out"><div class="cmp-fill" style="width:' + (wO > 0 ? wO : 0) + '%"></div><span class="cmp-label-out">' + outLabel + "</span></div>";
   return '<div class="cmp-bars">'
     + '<div class="cmp-bar cmp-sal"><div class="cmp-fill" style="width:' + (wS > 0 ? wS : 0) + '%"><span>給料 ' + num(sal) + "</span></div></div>"
-    + '<div class="cmp-bar cmp-out"><div class="cmp-fill" style="width:' + (wO > 0 ? wO : 0) + '%"><span>引き落とし' + (tewTotal > 0 ? "＋手渡し" : "") + " " + num(out) + "</span></div></div>"
+    + outBar
     + "</div>";
 }
 function newTid() { return "t_" + Date.now().toString(36) + "-" + Math.random().toString(36).slice(2, 8); }
@@ -3147,7 +3179,8 @@ function render() {
   // リデザイン(2026-08-26 採用案1c): 数字の意味をひと言タグで示し、給料vs引き落としの
   // 比較バーを添える。長い説明文は折りたたみ(details)に集約。文言・計算は従来のまま
   var zTag = "";
-  if (zan >= 0) zTag = '<span class="z-tag z-tag-plus">今月だけで黒字</span>';
+  // 2026-08-28 問題7: 過去・先の期間では「今月」と言わない。「貯金でカバー」は fin がある=今回の期間のみなのでそのまま
+  if (zan >= 0) zTag = '<span class="z-tag z-tag-plus">' + (isCurrent ? "今月だけで黒字" : "この期間は黒字") + "</span>";
   else if (fin && fin.finalLeft >= 0) zTag = '<span class="z-tag z-tag-minus">貯金でカバー</span>';
   var html = '<div class="z-label">📅 ' + zLabel + "</div>"
     + '<div class="z-amount' + (zan < 0 ? " minus" : "") + '">' + yen(zan) + zTag + "</div>"
