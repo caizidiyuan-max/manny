@@ -1875,6 +1875,19 @@
   /* 状態テキスト自体に✓/!が含まれるので、第3層が足す飾りの✓/!は消す(二重表示防止) */
   .save-done::before, .save-dirty::before { content: none; }
 
+  /* 【改修4・2026-09-06】出入りブロック(✓今日までに引かれた分 / →これから引かれる分)。
+     廃止した📅カードの後継として zangaku-card の枠の中に2列で出す(リデザイン1a案の2列を流用) */
+  .flow2 { display: grid; grid-template-columns: 1fr 1fr; }
+  .flow-cell { display: flex; flex-direction: column; gap: 2px; padding: 2px 12px 2px 0; min-width: 0; }
+  .flow-cell + .flow-cell { border-left: 1px solid var(--line); padding-left: 12px; padding-right: 0; }
+  .f2-label { font-size: 13px; color: var(--sub); line-height: 1.5; }
+  .f2-amt {
+    font-family: "Barlow Condensed", "BIZ UDGothic", "Hiragino Kaku Gothic ProN", "Yu Gothic", Meiryo, sans-serif;
+    font-size: 24px; font-weight: 700; font-variant-numeric: tabular-nums; line-height: 1.2;
+    overflow-wrap: anywhere;
+  }
+  .flow-note { margin-top: 7px; font-size: 12.5px; color: var(--sub); line-height: 1.6; }
+
   .period-bar {
     min-height: 56px;
     margin: 0 0 14px;
@@ -2503,11 +2516,11 @@
       <p>3. このアプリの「📋 貼り付けて取り込む」に貼る → 確認 → 残額が出る</p>
       <p>期間は「毎月25日〜翌月24日」で自動的に区切られます(給料日=25日)。</p>
       <p>ChatGPTなど<strong>Claude以外のAI</strong>に読ませるときは、取り込み画面の「🤖 AIへのお願い文を出す」でコピーした文を写真と一緒に送ると、同じ4列が返ってきます。</p>
-      <p>画面には2つの見方が出ます。上が「実際のお金」、下が「今月だけの成績」です。<br>
-      💰<strong>最終的に手元に残る</strong>(青い帯・上) = 口座残高 ＋ 今月の給料 − 残高に反映されていない引き落とし。<u>先月までの貯金も入れた、実際に残るお金</u>です。ふだんはこの数字を見てください(口座残高を入れたときだけ出ます)。<br>
+      <p>いちばん大事な数字は💰<strong>最終的に手元に残る</strong>です。<br>
+      💰 = 口座残高 ＋ 今月の給料 − 残高に反映されていない引き落とし − 残高を撮った日以降の🏠手渡し。<u>先月までの貯金も入れた、実際に残るお金</u>です(口座残高を入れたときだけ出ます)。<br>
       「残高に反映されていない引き落とし」は、<strong>残高を撮った日(当日を含む)から今の期間の終わりまで</strong>に出ていくぶんの合計です。一覧で「✓済」になっているものも、残高を撮ったあとに出たものなら含まれます(まだ残高に反映されていないため)。<br>
-      📅<strong>今月の給料だけで見ると</strong>(下) = 今月の給料 − 今月の引き落とし − 🏠手渡し。<u>貯金を入れない、今月だけの収支</u>です。カードが多い月はマイナス(赤字)になりますが、貯金で埋まっていれば上の数字は黒字のままです。</p>
-      <p>🏠<strong>大家さんへの手渡し</strong>は、📅(今月だけの収支)と見通しの各月からだけ引かれます。💰からは引きません。手渡しの現金はATMで下ろした時点で口座残高がもう減っている(=💰の土台に反映済み)ため、💰からも引くと二重に引いてしまうからです。ただし<strong>残高を撮った日より後に</strong>下ろして渡す予定のぶんは💰に映りません(そのぶん💰が多めに見えます)。手渡しをしたら残高スクショを撮り直すと正確になります。</p>
+      💰の下には「✓ 今日までに引かれた分 / → これから引かれる分」も出ます(この期間の引き落とし＋🏠手渡しを、今日を境に分けた合計です)。</p>
+      <p>🏠<strong>大家さんへの手渡し</strong>は、<strong>残高を撮った日(当日を含む)以降に渡した分だけ</strong>💰から引かれます。撮った日より前に渡した分は、ATMで下ろした時点で口座残高がもう減っている(=💰の土台に反映済み)ため引きません(引くと二重引きになります)。見通しの各月からは従来どおり引かれます。</p>
       <p>記録は自動では消えず、<strong>数年分ためられます</strong>(容量は1年で数十KB程度とごくわずか)。画面上部の「◀ ▶」で過去の月をいつでも見返せます。給料は期間ごとに記録されるので、昔の月は当時の給料で計算されます。</p>
     </div>
 
@@ -2565,9 +2578,10 @@ var RESERVE_CASH = 3000;
 //   どのAI(ChatGPT・Claude等)で読み取っても、このアプリを通す限り必ず正しい日付になる(=AI側の記憶に頼らない)。
 // tewatashi: 大家さんへの現金手渡しの記録 [{ id:"t_...", date, amount, memo }](改修2)。
 //   全期間ぶん保持し、表示時に期間で絞る(payments と同じ方式)。
-//   計算への効かせ方は「📅今月の給料だけで見ると」から引くだけ(改修3)。
-//   💰口座残高ベースには引かない(現金はATMで下ろした時点で残高から減っている=反映済みのため。
-//   ここでも引くと二重引きになる)。古い保存データに tewatashi が無くても空配列で正常に動く(後方互換)
+//   計算への効かせ方(改修4・2026-09-06): 💰から「残高の記録日(当日を含む)以降の分」を引く
+//   (引き落とし paymentsPart と同じ範囲ルール)。記録日より前の分は、現金をATMで下ろした時点で
+//   残高から減っている=反映済みのため引かない(引くと二重引きになる)。見通しの月次収支からも引く。
+//   古い保存データに tewatashi が無くても空配列で正常に動く(後方互換)
 var S = { salary: 0, payments: [], salaryHistory: {}, balance: null, fixedDays: {}, tewatashi: [] };
 var dirty = false;
 var lastSavedAt = "";
@@ -2630,14 +2644,19 @@ function num(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
 // 1行の最小高さは34pxを確保し、潰れる行・4件目以降は「他N件」に集約(ハンドオフ書の指定)。
 // 残る額が0以下・出ていく額が0のときは帯が成立しないので出さない(従来表示のみ)
 function bandHtml(fin, period) {
-  if (!S.balance || fin.finalLeft <= 0 || fin.paymentsPart <= 0) return "";
+  // 【改修4】帯の「これから出るぶん」に、残高の記録日以降の🏠手渡しも含める(💰の計算と同じ範囲)
+  var outPart = fin.paymentsPart + fin.tewPart;
+  if (!S.balance || fin.finalLeft <= 0 || outPart <= 0) return "";
   var items = [];
   S.payments.forEach(function (p) {
     if (p.date >= S.balance.date && p.date <= period.end) items.push(p);
   });
+  S.tewatashi.forEach(function (t) {
+    if (t.date >= S.balance.date && t.date <= period.end) items.push({ card: "🏠大家さんへ手渡し", amount: t.amount });
+  });
   if (items.length === 0) return "";
   items.sort(function (a, b) { return b.amount - a.amount; });
-  var totalAll = fin.finalLeft + fin.paymentsPart; // = 口座残高 + 足した給料
+  var totalAll = fin.finalLeft + outPart; // = 口座残高 + 足した給料
   var H = 306, MINH = 34;
   var shown = [], restAmt = 0, restCnt = 0, restOnly = null;
   items.forEach(function (p) {
@@ -2660,13 +2679,14 @@ function bandHtml(fin, period) {
     + '<div class="band-head">口座残高' + (fin.salaryPart > 0 ? "＋今月の給料" : "") + " " + num(totalAll) + "円 の中身</div>"
     + '<div class="band">'
     + '<div class="band-keep" style="flex:' + fin.finalLeft + '"><span class="bk-label">手元に残る</span><span class="bk-amt">' + num(fin.finalLeft) + "</span></div>"
-    + '<div class="band-out" style="flex:' + fin.paymentsPart + '">' + rowsHtml + "</div>"
+    + '<div class="band-out" style="flex:' + outPart + '">' + rowsHtml + "</div>"
     + "</div>"
-    + '<div class="band-legend"><span>濃い＝残るぶん</span><span>薄い＝これから出るぶん ' + num(fin.paymentsPart) + "</span></div>"
+    + '<div class="band-legend"><span>濃い＝残るぶん</span><span>薄い＝これから出るぶん ' + num(outPart) + "</span></div>"
     + "</div>";
 }
 // 📅の比較バー(リデザイン採用案1c)。給料と引き落とし(+手渡し)を、大きい方を100%とした
 // 横バー2本の長さ比較で見せる。どちらも0以下なら出さない
+// 【現在未使用】改修4(2026-09-06)で📅カードごと廃止。復活要望に備えて関数とCSSは残してある
 function cmpBarsHtml(sal, total, tewTotal) {
   var out = total + tewTotal;
   var mx = Math.max(sal, out);
@@ -3075,6 +3095,12 @@ function render() {
     if (p.date < today) paid += p.amount; // 今日より前=済(今日当日は「これから」)
   });
   var upcoming = total - paid;
+  // 🏠手渡しも「済み/これから」に含めて数える(改修4: 出入りブロックで引き落としと一緒に見せる)
+  var tewRows = periodTewatashi(period);
+  var tewPaid = 0, tewUpcoming = 0;
+  tewRows.forEach(function (t) {
+    if (t.date < today) tewPaid += t.amount; else tewUpcoming += t.amount;
+  });
 
   // この期間の給料: 今回は現在値、過去・先の期間は当時の記録(なければ今の値で代用して知らせる)
   var sal = S.salary, salNote = "";
@@ -3083,12 +3109,9 @@ function render() {
     if (recSal !== null) sal = recSal;
     else salNote = "この期間の給料の記録がないため、今の給料で計算しています。";
   }
-  // 【改修3】大家さんへの手渡しは📅「今月の給料だけで見ると」からだけ引く。
-  // 💰「最終的に手元に残る」(下の fin)には引かない: 💰は口座の動きだけの計算で、
-  // 手渡しの現金はATMで下ろした時点で口座残高がもう減っている(=反映済み)ため、
-  // ここでさらに引くと二重引きになる
+  // 【改修4・2026-09-06】📅「今月の給料だけで見ると」カードは廃止(ユーザー要望)。
+  // 手渡しは💰から「残高の記録日以降の分」を引く方式に変更(下の fin の tewPart)。
   var tewTotal = periodTewatashiTotal(period);
-  var zan = sal - total - tewTotal;
 
   // ---- 💰「最終的に手元に残る」の計算(今回の期間で口座残高が入っているときだけ) ----
   //   最終残り = 口座残高 + まだ入っていない今月の給料 − 残高に反映されていない引き落とし
@@ -3124,12 +3147,24 @@ function render() {
     // 残高日が期間終了日より後(未来日付など)なら範囲が逆転するので0のまま(負にしない)。
     // 件数と「前の期間の分を含むか」も数えて内訳に出す(検証7問題3対応。額の根拠を同じ画面で確かめられるように)
     var paymentsPart = 0, paymentsCount = 0, paymentsPrev = false;
+    // 【改修4・2026-09-06 ユーザー要望】残高の記録日(当日を含む)以降の🏠手渡しも💰から引く。
+    // 記録日より前に渡した分はATMで下ろした時点で残高に反映済みなので引かない(二重引き防止)。
+    // これまで手渡しは💰から一切引いていなかったため、残高スクショの後に渡した現金のぶん
+    // 💰が実際より多く見えていた(例: 手渡し26万円がまるごと乗っていた)
+    var tewPart = 0, tewCount = 0, tewPrev = false;
     if (S.balance.date <= period.end) {
       S.payments.forEach(function (p) {
         if (p.date >= S.balance.date && p.date <= period.end) {
           paymentsPart += p.amount;
           paymentsCount++;
           if (p.date < period.start) paymentsPrev = true; // 今回の期間より前の日付=前の期間の分
+        }
+      });
+      S.tewatashi.forEach(function (t) {
+        if (t.date >= S.balance.date && t.date <= period.end) {
+          tewPart += t.amount;
+          tewCount++;
+          if (t.date < period.start) tewPrev = true; // 引き落としと同じく前の期間の分も注記に出す
         }
       });
     }
@@ -3149,11 +3184,14 @@ function render() {
     var salAsk = S.balance.salaryAsk === true && salInfo.fresh;
     if (salAsk) why.push("今月の給料がもう入っているか、⚙設定で確かめてください。");
     fin = {
-      finalLeft: S.balance.amount + salaryPart - paymentsPart,
+      finalLeft: S.balance.amount + salaryPart - paymentsPart - tewPart,
       salaryPart: salaryPart,
       paymentsPart: paymentsPart,
       paymentsCount: paymentsCount,
       paymentsPrev: paymentsPrev,
+      tewPart: tewPart,
+      tewCount: tewCount,
+      tewPrev: tewPrev,
       salInc: salInc,
       salAsk: salAsk,
       kari: (salGuess && salaryUsed) || (salMissing && salaryUsed) || salStale || balOld || salAsk,
@@ -3175,52 +3213,24 @@ function render() {
   $("period-back").innerHTML = isCurrent ? "" : '<button class="chip-btn" id="btn-period-today" type="button" style="width:100%;margin-bottom:12px">↩ 今回の期間に戻る</button>';
   if (!isCurrent) $("btn-period-today").onclick = function () { viewOffset = 0; render(); };
 
-  var zLabel = isCurrent ? "今月の給料だけで見ると" : (isPast ? "その期間の給料だけで見ると(記録)" : "その期間の給料だけで見ると(見込み)");
-  // リデザイン(2026-08-26 採用案1c): 数字の意味をひと言タグで示し、給料vs引き落としの
-  // 比較バーを添える。長い説明文は折りたたみ(details)に集約。文言・計算は従来のまま
-  var zTag = "";
-  // 2026-08-28 問題7: 過去・先の期間では「今月」と言わない。「貯金でカバー」は fin がある=今回の期間のみなのでそのまま
-  if (zan >= 0) zTag = '<span class="z-tag z-tag-plus">' + (isCurrent ? "今月だけで黒字" : "この期間は黒字") + "</span>";
-  else if (fin && fin.finalLeft >= 0) zTag = '<span class="z-tag z-tag-minus">貯金でカバー</span>';
-  var html = '<div class="z-label">📅 ' + zLabel + "</div>"
-    + '<div class="z-amount' + (zan < 0 ? " minus" : "") + '">' + yen(zan) + zTag + "</div>"
-    + cmpBarsHtml(sal, total, tewTotal);
-  var zMore = '<div class="z-detail">給料 ' + yen(sal)
-    + (isCurrent ? "(変更は下の「給料(手取り)」から)" : "") + " − 引き落とし合計 " + yen(total)
-    + (tewTotal > 0 ? " − 🏠手渡し " + yen(tewTotal) : "") + "<br>"
-    + "うち ✓支払済み " + yen(paid) + " / →これから " + yen(upcoming) + "</div>";
-  if (isCurrent) {
-    // 残高カードが出ているときはそちらを案内、出ていないときは残高を入れる案内にする(存在しないカードを指さない)
-    zMore += '<div class="z-detail">※これは今月だけの収支です(先月までの貯金は入っていません)。'
-      + (S.balance
-          ? '実際に残る額は上の「💰 最終的に手元に残る」。'
-          : '口座残高を入れると、貯金も入れた「実際に残る額」が出せます(⚙ 設定・使い方)。')
-      + "</div>";
+  // 【改修4・2026-09-06】📅「今月の給料だけで見ると」カードは廃止し、代わりに
+  // 「✓今日までに引かれた分 / →これから引かれる分」の出入りブロックを出す(ユーザー要望)。
+  // 🏠手渡しも合算して見せる(内訳は下の一覧でそのまま確認できる)
+  var flowHtml = "";
+  if (total + tewTotal > 0) {
+    var flowPaid = paid + tewPaid, flowUp = upcoming + tewUpcoming;
+    flowHtml = '<div class="flow2">'
+      + '<div class="flow-cell"><span class="f2-label">✓ 今日までに引かれた分</span><span class="f2-amt">' + yen(flowPaid) + "</span></div>"
+      + '<div class="flow-cell"><span class="f2-label">→ これから引かれる分</span><span class="f2-amt">' + yen(flowUp) + "</span></div>"
+      + "</div>"
+      + '<div class="flow-note">この期間の引き落とし' + (tewTotal > 0 ? "と🏠手渡し" : "") + "の合計 " + yen(total + tewTotal) + "(今日=" + esc(today) + "基準)</div>";
   }
-  var zWarn = "";
-  if (zan < 0) {
-    // 給料が未入力(0円)や、過去の期間で当時の給料の記録がなく今の給料で代用しているときは
-    // 「足りない」と断定できない。赤い警告ではなく注記にする(検証7問題4・検証9対応)
-    var salUncertain = (sal <= 0) || (!isCurrent && recordedSalary(period) === null);
-    if (salUncertain) {
-      zMore += '<div class="z-detail">※'
-        + (isCurrent ? "給料がまだ入っていないため、この数字は参考です(⚙ 設定・使い方から今月の給料を入れてください)。"
-                     : "この期間の給料の記録がないため(今の給料で計算)、この数字は参考です。")
-        + "</div>";
-    } else if (fin && fin.finalLeft >= 0) {
-      // 💰が黒字なら、この不足は先月までの貯金で埋まっている。赤い警告ではなく注記にして
-      // 「結局どうなのか」を💰に寄せる(問題5対応)
-      zMore += '<div class="z-detail">※この不足 ' + yen(-zan) + " は先月までの貯金で埋まっています(実際に残るお金は上の💰 "
-        + yen(fin.finalLeft) + (fin.kari ? "・仮の数字" : "") + ")。</div>";
-    } else {
-      // 「足りません」の警告は折りたたみに入れず、必ず見える場所に出す(安全上の情報)
-      zWarn = '<div class="z-minus-note"><span class="warn-ic">!</span><span>' + yen(-zan) + " 足りません(給料より" + (tewTotal > 0 ? "引き落としと手渡しの合計" : "引き落とし") + "が多い状態です)</span></div>";
-    }
+  if (isCurrent && !S.balance) {
+    // 残高未入力だと💰カードが出ない。主役の数字への入口をここで案内する
+    flowHtml += '<div class="empty-note" style="margin-top:8px">口座残高を入れると「💰 最終的に手元に残る」額が出ます(⚙ 設定・使い方)。</div>';
   }
-  html += '<details class="more"><summary>この金額の内訳・説明</summary><div class="more-body">' + zMore + "</div></details>" + zWarn;
-  // 📥 積み立てに回せる金額(追加表示。元の📅の数字はそのまま残す)
-  html += savingBlockHtml(zan, isCurrent);
-  $("zangaku-card").innerHTML = html;
+  $("zangaku-card").innerHTML = flowHtml;
+  $("zangaku-card").hidden = !flowHtml;
 
   if (isCurrent) {
     $("salary-row").innerHTML =
@@ -3256,6 +3266,8 @@ function render() {
         + (fin.paymentsCount > 0
             ? "(" + fin.paymentsCount + "件" + (fin.paymentsPrev ? "・前の期間の分も含む" : "") + ")"
             : "")
+        // 【改修4】残高の記録日以降の🏠手渡しも引く(記録日より前の分は残高に反映済みなので引かない)
+        + (fin.tewPart > 0 ? " − 残高を撮った日以降の🏠手渡し " + yen(fin.tewPart) + "(" + fin.tewCount + "件" + (fin.tewPrev ? "・前の期間の分も含む" : "") + ")" : "")
         + "<br>※先月までの貯金も入れた、実際に残るお金です。</div>";
     if (fin.salInc) {
       // 推測で決めたとき(確認をお願いしているとき)は断定しない。直下の「確かめてください」と矛盾させない
@@ -3273,7 +3285,7 @@ function render() {
       if (fin.suppressRed) {
         bhtml += '<div class="b-detail b-kari">※仮の数字のため、不足かどうかは確かではありません。</div>';
       } else {
-        bhtml += '<div class="z-minus-note"><span class="warn-ic">!</span><span>' + yen(-fin.finalLeft) + " 足りません(口座残高と今月の給料をあわせても、引き落としに足りない見込みです)</span></div>";
+        bhtml += '<div class="z-minus-note"><span class="warn-ic">!</span><span>' + yen(-fin.finalLeft) + " 足りません(口座残高と今月の給料をあわせても、" + (fin.tewPart > 0 ? "引き落としと🏠手渡し" : "引き落とし") + "に足りない見込みです)</span></div>";
       }
     }
     // 残高が未来日付のときの警告は維持(記録日が未来だと出ていくぶんが少なく数えられ、多く残るように見える)
@@ -3331,7 +3343,7 @@ function renderTewatashi(period) {
       + "</button>";
   }).join("");
   html += '<div class="tew-entry">'
-    + '<div class="hint" style="margin-bottom:8px">数ヶ月に1回、大家さんへ現金で渡した諸経費をここに書きます(書くと「📅 今月の給料だけで見ると」から引かれます)。</div>'
+    + '<div class="hint" style="margin-bottom:8px">数ヶ月に1回、大家さんへ現金で渡した諸経費をここに書きます。残高を撮った日(当日を含む)以降に渡した分は「💰 最終的に手元に残る」から引かれます(撮った日より前の分は、残高がもう減っているので引きません)。</div>'
     + '<div class="t-fields">'
     + '<input id="tew-date" type="date" aria-label="渡した日">'
     + '<input id="tew-amount" type="text" inputmode="numeric" placeholder="金額(円・整数)" aria-label="金額(円・整数)">'
@@ -3870,8 +3882,8 @@ function forecastRows() {
       // 今月だけは出発点が2通りある。口座残高を入れていれば実際のお金(💰)から、
       // 入れていなければ給料だけの計算(📅)から。学生でも式をそのまま読めば分かるように、
       // 使った数字をすべて breakdown に残す(黙って計算しない)。
-      // 💰出発(kind:"balance")には手渡しを引かない(口座の動きだけの計算。二重引き防止)。
-      // 📅出発(kind:"salary")には手渡しを引く
+      // 💰出発(kind:"balance")は、残高の記録日以降の手渡しを引く(改修4。メイン画面の💰と同じ式)。
+      // 📅出発(kind:"salary")は期間内の手渡しを全額引く
       var startInfo = forecastStart(per, sal, total, tew);
       cum = startInfo.value;
       rows.push({ per: per, sal: sal, total: total, tew: tew, monthOnly: monthOnly, cum: cum, prevCum: prevCum,
@@ -3887,23 +3899,27 @@ function forecastRows() {
 }
 // 今月(先頭行)の出発点をどこに取るか(💰口座残高があればそれ、なければ📅給料だけ)。
 // 使った数字を全部返す。「その月だけ」の数字と違う理由をあとで式として見せるため。
-// tew(手渡し合計)は📅出発のときだけ引く。💰出発には引かない(改修3。二重引き防止)
+// 【改修4・2026-09-06】💰出発でも「残高の記録日以降の手渡し」は引く(メイン画面の💰と同じ式)。
+// 記録日より前の手渡しは残高に反映済みなので引かない(二重引き防止)
 function forecastStart(per, sal, total, tew) {
   if (S.balance) {
     var info = salaryIncludedInfo(S.balance, per.start);
     var mSal = S.salary;
     if (mSal <= 0) { var lr = latestRecordedSalary(); if (lr !== null) mSal = lr; }
     var salaryPart = info.included ? 0 : mSal;
-    var paymentsPart = 0;
+    var paymentsPart = 0, tewPart = 0;
     if (S.balance.date <= per.end) {
       S.payments.forEach(function (p) {
         if (p.date >= S.balance.date && p.date <= per.end) paymentsPart += p.amount;
       });
+      S.tewatashi.forEach(function (t) {
+        if (t.date >= S.balance.date && t.date <= per.end) tewPart += t.amount;
+      });
     }
     return {
-      kind: "balance", value: S.balance.amount + salaryPart - paymentsPart,
+      kind: "balance", value: S.balance.amount + salaryPart - paymentsPart - tewPart,
       balanceAmount: S.balance.amount, balanceDate: S.balance.date,
-      salaryPart: salaryPart, paymentsPart: paymentsPart, salaryIncluded: info.included
+      salaryPart: salaryPart, paymentsPart: paymentsPart, tewPart: tewPart, salaryIncluded: info.included
     };
   }
   return { kind: "salary", value: sal - total - (tew || 0) };
@@ -3952,9 +3968,12 @@ function renderForecast() {
     // というお金の流れそのままの順番で書く(ユーザー要望: 学生でも分かるように)
     var steps = [], bigLabel = "💰 実際に残る見込み";
     if (r.isNow && r.start && r.start.kind === "balance") {
-      var afterCharge = r.start.balanceAmount - r.start.paymentsPart;
+      // 【改修4】残高の記録日以降の🏠手渡しも①で一緒に引く(メイン画面の💰と同じ式)
+      var afterCharge = r.start.balanceAmount - r.start.paymentsPart - (r.start.tewPart || 0);
       steps.push("① 口座残高 " + yen(r.start.balanceAmount) + "(" + esc(r.start.balanceDate) + "時点)"
-        + " − これから引き落とされる予定 " + yen(r.start.paymentsPart) + " = 余り " + yen(afterCharge));
+        + " − これから引き落とされる予定 " + yen(r.start.paymentsPart)
+        + (r.start.tewPart > 0 ? " − 残高を撮った日以降の🏠手渡し " + yen(r.start.tewPart) : "")
+        + " = 余り " + yen(afterCharge));
       if (r.start.salaryPart > 0) {
         steps.push("② 余り " + yen(afterCharge) + " ＋ まだ入っていない今月の給料 " + yen(r.start.salaryPart) + " = " + yen(r.cum));
       } else {
