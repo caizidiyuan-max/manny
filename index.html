@@ -1888,6 +1888,53 @@
   }
   .flow-note { margin-top: 7px; font-size: 12.5px; color: var(--sub); line-height: 1.6; }
 
+  /* 【改修5・2026-09-12】スマホ縦1画面化。
+     一覧・手渡し・給料は details 折りたたみ(.sec)にし、閉じた初期表示でスクロールが出ないようにする */
+  .sec {
+    border: 1px solid var(--line);
+    margin: 0 0 8px;
+    background: transparent;
+  }
+  .sec > summary {
+    list-style: none;
+    cursor: pointer;
+    min-height: 46px;
+    display: flex;
+    align-items: center;
+    padding: 4px 12px;
+    font-size: 14px;
+    font-weight: 800;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .sec > summary::-webkit-details-marker { display: none; }
+  .sec > summary::after { content: "＋"; margin-left: auto; font-size: 16px; color: var(--sub); padding-left: 8px; }
+  .sec[open] > summary::after { content: "×"; }
+  .sec > summary:hover { background: rgba(89, 128, 166, 0.08); }
+  .sec > *:not(summary) { padding: 0 10px 10px; }
+  .sec .pay-row { border-left: 0; border-right: 0; }
+  /* 折りたたみ内の給料行は枠を持たせない(secの枠と二重になるため) */
+  .sec .salary-row { border: 0; margin: 0; padding: 6px 2px 2px; background: transparent; box-shadow: none; }
+
+  /* 🏠借金残りの行(出入りブロック内) */
+  .debt-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin-top: 8px; padding-top: 8px;
+    border-top: 1px solid var(--line);
+  }
+  .debt-amt {
+    font-family: var(--font-num);
+    font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums;
+    color: var(--warn);
+  }
+  .debt-clear .debt-amt { color: var(--acc-800); }
+
+  /* 最下部の貼り付け欄(常設)。貼ったときだけプレビューが下に伸びる */
+  .paste-box { min-height: 64px; margin-bottom: 0; }
+
+  /* 積み立て0円のときの主数字(警告色にせず、控えめなグレー) */
+  .saving-zero-main { color: var(--sub); }
+
+
   .period-bar {
     min-height: 56px;
     margin: 0 0 14px;
@@ -2004,7 +2051,7 @@
     font-size: 14px;
     font-variant-numeric: tabular-nums;
   }
-  .band { display: flex; flex-direction: column; height: 306px; gap: 3px; }
+  .band { display: flex; flex-direction: column; height: 140px; gap: 3px; } /* 改修5: 1画面化で306→140px */
   .band-keep {
     display: flex;
     align-items: center;
@@ -2173,7 +2220,7 @@
   details.more > .more-body > .b-detail:first-child { margin-top: 0; }
 
   .btn { font-weight: 800; }
-  /* 幅の狭い画面で「貼り付けて取り込む」が2行に折り返さないよう詰める */
+  /* 幅の狭い画面で下部の2ボタン(お願い文をコピー/1件手入力)が2行に折り返さないよう詰める */
   .entry-btns > .btn { padding-inline: 8px; font-size: 15px; }
   .btn-primary {
     /* 2026-08-28 問題2: #5980a6+白文字(3.71:1)→ accent-700 #416180(5.78:1)に濃度上げ */
@@ -2358,75 +2405,131 @@
   .saving-amount.saving-zero-amt { color: var(--warn); }
   .saving-note { color: var(--warn); }
   .saving-sub { color: var(--sub); }
+  /* 【改修5】1画面化の圧縮: 各部の余白・高さをスマホ縦812pxに収まる寸法へ詰める */
+  .wrap { padding: 8px 14px 12px; }
+  .header { margin-bottom: 6px; }
+  .save-bar { margin-bottom: 6px; padding: 4px; min-height: 0; }
+  .save-btn { min-height: 40px; min-width: 76px; padding: 6px 16px; }
+  .period-bar { min-height: 44px; margin-bottom: 8px; padding: 4px; }
+  .p-nav { min-height: 38px; min-width: 48px; }
+  .p-sub { font-size: 10px; }
+  .balance-card { padding: 12px 14px 10px; margin-bottom: 8px; }
+  .b-amount { font-size: clamp(28px, 8.6vw, 34px); margin: 3px 0 4px; }
+  .band-keep { min-height: 40px; padding: 6px 12px; }
+  .band-keep .bk-amt { font-size: 28px; }
+  .band-row .br-amt { font-size: 16px; }
+  .zangaku-card { padding: 10px 12px; margin-bottom: 8px; }
+  .f2-amt { font-size: 20px; }
+  .flow-note { margin-top: 5px; font-size: 12px; }
+  .more > summary { min-height: 40px; }
+  .sec { margin-bottom: 6px; }
+  .sec > summary { min-height: 40px; }
+  .entry-btns { margin-bottom: 6px; }
+  .entry-btns > .btn { min-height: 46px; margin-bottom: 0; }
+  .saving-note { margin-top: 2px; }
+  /* さらに圧縮(2段目): 812pxに収めるための追い込み */
+  .header { margin-bottom: 4px; }
+  .header h1 { font-size: 20px; }
+  .chip-btn { min-height: 36px; padding: 4px 10px; }
+  .b-label .chip-btn { min-height: 36px; }
+  .save-btn { min-height: 36px; }
+  .save-bar { padding: 3px; }
+  .p-nav { min-height: 36px; }
+  .period-bar { min-height: 42px; margin-bottom: 6px; }
+  .p-label { font-size: 14px; }
+  .balance-card { margin-bottom: 6px; }
+  .zangaku-card { margin-bottom: 6px; padding: 8px 12px; }
+  .b-amount { font-size: 30px; margin: 2px 0 3px; }
+  .band { height: 120px !important; }
+  .band-head { margin-bottom: 5px !important; }
+  .band-keep .bk-amt { font-size: 25px; }
+  .band-keep { min-height: 36px; }
+  .band-row { min-height: 30px !important; }
+  .more > summary { min-height: 36px; }
+  .sec > summary { min-height: 38px; font-size: 13.5px; }
+  .sec { margin-bottom: 4px; }
+  /* 出入りセルはラベル+金額を1行に(縦2段をやめて高さ半分に) */
+  .flow2 { margin-top: 2px; }
+  .flow-cell { flex-direction: row; align-items: baseline; gap: 6px; padding: 0 8px 0 0; }
+  .flow-cell + .flow-cell { padding-left: 8px; }
+  .f2-label { font-size: 11.5px; white-space: nowrap; }
+  .f2-amt { font-size: 17px; }
+  .debt-row { margin-top: 6px; padding-top: 6px; }
+  .debt-amt { font-size: 17px; }
+  .flow-note { margin-top: 4px; font-size: 11.5px; line-height: 1.5; }
+  .paste-box { min-height: 48px; padding: 8px 10px; font-size: 13px; }
+  /* 圧縮3段目 */
+  .header h1::before { font-size: 8px; margin-bottom: 1px; }
+  .header { grid-template-columns: minmax(0, 1fr) auto auto; }
+  .save-status { font-size: 12px; line-height: 1.3; margin: 0 0 6px; min-height: 16px; }
+  /* 旧層の複合セレクタ(.balance-card .b-amount 等)に負けないよう、同じ詳細度で上書きする */
+  .balance-card .b-amount { font-size: 30px; line-height: 1.1; margin: 2px 0 3px; }
+  .balance-card .b-label { font-size: 14px; }
+  .period-bar .p-nav, .p-nav { height: 36px; min-height: 36px; padding: 4px 8px; }
+  .period-bar { min-height: 40px; }
+  .band-legend { font-size: 10.5px; }
+  .p-label { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .p-label .p-sub { margin-left: 4px; }
+  .b-amount { line-height: 1.05; margin: 2px 0; }
+  .b-label { font-size: 14px; }
+  .balance-card { padding: 10px 12px 8px; }
+  .band { height: 112px !important; }
+  .more > summary { min-height: 34px; font-size: 12px; }
+  .sec > summary { min-height: 36px; }
+  .wrap { padding-top: 6px; padding-bottom: 10px; }
+  textarea.paste-box { min-height: 48px; padding: 6px 10px; }
+  /* 圧縮4段目(最終)。.band の height は JS bandHtml の H と必ず同じ値にすること(検証問題1) */
+  .band { height: 104px !important; }
+  .band-row { min-height: 28px !important; }
+  .sec { margin-bottom: 2px; }
+  .save-status { margin-bottom: 2px; }
+  .period-bar { margin-bottom: 4px; }
+  .balance-card { padding: 8px 12px 6px; }
+  .zangaku-card { padding: 8px 12px 6px; }
+  .more { margin-top: 2px; }
+  .wrap { padding-top: 4px; padding-bottom: 2px; }
+  .entry-btns { margin-bottom: 4px; }
+  /* 金額は数字の途中で折り返さない(320px幅対策。収まらないときはラベル側が縮む) */
+  .f2-amt { white-space: nowrap; overflow-wrap: normal; }
+  .flow-cell { flex-wrap: wrap; }
 </style>
 </head>
 <body>
 <div class="wrap" id="main-screen">
+  <!-- 【改修5・2026-09-12】スマホ縦1画面完結が目標。初期表示(折りたたみ全部閉じ)でスクロールが
+       出ないよう、一覧・手渡し・給料は details 折りたたみ。開いたときだけ縦に伸びる -->
+  <!-- 保存ボタンはヘッダー行に統合し、保存状態はその下の小さな1行に(1画面化) -->
   <div class="header">
     <h1>給料残額</h1>
-    <!-- 縦を使わないようヘッダーの小ボタンに置く(主要ボタンを画面の下へ押し出さないため) -->
-    <button class="chip-btn" id="btn-forecast" type="button">📈 見通し</button>
+    <button class="save-btn" id="btn-save" type="button">保存</button>
     <button class="chip-btn" id="btn-settings" type="button">⚙ 設定</button>
   </div>
-
-  <div class="save-bar">
-    <button class="save-btn" id="btn-save" type="button">保存</button>
-    <div class="save-status" id="save-status"></div>
-  </div>
+  <div class="save-status" id="save-status"></div>
 
   <div id="load-warning"></div>
 
   <div class="period-bar" id="period-bar"></div>
   <div id="period-back"></div>
 
-  <!-- いちばん知りたい「実際に手元に残る額」を先頭に置く(口座残高を入れたときだけ出る) -->
+  <!-- 主役: 📥積み立てに回せる金額+口座残高の面積帯(口座残高を入れたときだけ出る) -->
   <div class="balance-card view-bal" id="balance-card" hidden></div>
 
+  <!-- 出入りブロック(✓今日までに引かれた分/→これから)+🏠借金残り -->
   <div class="zangaku-card" id="zangaku-card"></div>
 
+  <details class="sec" id="sec-pay"><summary id="list-head"></summary><div id="pay-list"></div></details>
+  <details class="sec" id="sec-tew"><summary id="tew-head"></summary><div id="tewatashi-block"></div></details>
+  <details class="sec" id="sec-salary"><summary id="salary-head"></summary><div class="salary-row" id="salary-row"></div></details>
+
+  <!-- 取り込み: シートを開かず、最下部の欄に直接貼る(改修5)。
+       「お願い文をコピー」→AIにExcel・スクショと一緒に渡す→返ってきたテキストを貼ると即プレビュー -->
   <div class="entry-btns">
-    <button class="btn btn-primary" id="btn-import" type="button">📋 貼り付けて取り込む</button>
+    <button class="btn btn-primary" id="btn-copy-prompt" type="button">📋 お願い文をコピー</button>
     <button class="btn btn-outline" id="btn-manual" type="button">✏ 1件手入力</button>
   </div>
-
-
-  <!-- 給料欄は月1回しか触らないため、毎月使う主要ボタンより下に置く(問題7対応) -->
-  <div class="salary-row" id="salary-row"></div>
-
-  <div class="list-head" id="list-head"></div>
-  <div id="pay-list"></div>
-
-  <!-- 🏠 大家さんへの手渡しマス(改修2)。数ヶ月に1回なので、毎月見るカード一覧より下に置く -->
-  <div id="tewatashi-block"></div>
-</div>
-
-<!-- 取り込みパネル -->
-<div class="overlay" id="import-overlay" hidden>
-  <div class="wrap">
-    <h2>貼り付けて取り込む</h2>
-    <div class="panel">
-      <div class="hint">カードアプリの「支払予定」画面のスクショを Claude に送ると、下の4列の形で返ってきます。それをここに貼り付けてください。<br>
-      <code>引き落とし日,カード名,金額,メモ</code><br>
-      例: <code>2026-08-10,楽天,45210,7月分</code><br>
-      銀行アプリの残高画面なら <code>残高,日付,金額</code> の1行になります(貼ると「最終的に手元に残る」額も出ます)。<br>
-      給与明細の画面なら <code>給料,支給日,差引支給額</code> の1行になります(貼ると給料欄が自動で入ります。金額は手取りの額)。</div>
-      <button class="btn btn-outline" id="btn-ai-prompt" type="button" style="margin-bottom:8px">🤖 AIへのお願い文を出す(写真と一緒にAIへ渡す用)</button>
-      <div id="ai-prompt-area"></div>
-      <textarea id="import-text" placeholder="2026-08-10,楽天,45210,7月分&#10;2026-08-27,三井住友,32000,7月分"></textarea>
-      <button class="btn btn-primary" id="btn-parse" type="button" style="margin-top:10px">内容を確認する</button>
-    </div>
-    <div id="import-preview"></div>
-    <button class="btn btn-ghost" id="btn-import-close" type="button">閉じる</button>
-  </div>
-</div>
-
-<!-- 先の見通し(繰り越し)パネル -->
-<div class="overlay" id="forecast-overlay" hidden>
-  <div class="wrap">
-    <h2>📈 先の見通し(繰り越し)</h2>
-    <div id="forecast-body"></div>
-    <button class="btn btn-ghost" id="btn-forecast-close" type="button">閉じる</button>
-  </div>
+  <div id="ai-prompt-area"></div>
+  <textarea id="import-text" class="paste-box" placeholder="AIから返ってきたテキストをここに貼り付けると、確認が出ます"></textarea>
+  <div id="import-preview"></div>
 </div>
 
 <!-- 編集・手入力パネル -->
@@ -2511,16 +2614,16 @@
 
     <h3>使い方(毎月のルーチン)</h3>
     <div class="panel setting-text">
-      <p>1. 25日ごろ、カードアプリの「支払予定」画面をスクショして Claude に送る(2〜3枚まとめてOK)。銀行アプリの<strong>残高画面</strong>や<strong>給与明細の画面</strong>も一緒に送ってOK(残高は「今の残高から見た残り」、給与明細は給料欄の自動入力に使われます)</p>
-      <p>2. <code>引き落とし日,カード名,金額,メモ</code> の4列テキスト(残高画面は <code>残高,日付,金額</code>、給与明細は <code>給料,支給日,差引支給額</code> の1行)が返ってくる</p>
-      <p>3. このアプリの「📋 貼り付けて取り込む」に貼る → 確認 → 残額が出る</p>
+      <p>1. 画面いちばん下の「📋 お願い文をコピー」を押す</p>
+      <p>2. コピーした文を、カードの<strong>支払予定のスクショ</strong>・銀行の<strong>残高画面のスクショ</strong>・<strong>給与明細</strong>・大家さんの<strong>家賃シート(Excelやスクショ)</strong>と一緒に、Claude や ChatGPT などのAIに送る(まとめてOK)</p>
+      <p>3. 返ってきたテキストを、画面いちばん下の欄に貼る → 確認が出る → 取り込むを押す → 残額が出る</p>
       <p>期間は「毎月25日〜翌月24日」で自動的に区切られます(給料日=25日)。</p>
-      <p>ChatGPTなど<strong>Claude以外のAI</strong>に読ませるときは、取り込み画面の「🤖 AIへのお願い文を出す」でコピーした文を写真と一緒に送ると、同じ4列が返ってきます。</p>
-      <p>いちばん大事な数字は💰<strong>最終的に手元に残る</strong>です。<br>
-      💰 = 口座残高 ＋ 今月の給料 − 残高に反映されていない引き落とし − 残高を撮った日以降の🏠手渡し。<u>先月までの貯金も入れた、実際に残るお金</u>です(口座残高を入れたときだけ出ます)。<br>
+      <p>いちばん大事な数字は📥<strong>積み立てに回せる金額</strong>です。<br>
+      📥 = 手元に残る額 − 手元に残す現金 ¥3,000。手元に残る額 = 口座残高 ＋ 今月の給料 − 残高に反映されていない引き落とし − 残高を撮った日以降の🏠手渡し。<u>先月までの貯金も入れた、実際のお金</u>から計算します(口座残高を入れたときだけ出ます)。手元に残る額そのものは、下の面積帯の濃い部分に出ています。<br>
       「残高に反映されていない引き落とし」は、<strong>残高を撮った日(当日を含む)から今の期間の終わりまで</strong>に出ていくぶんの合計です。一覧で「✓済」になっているものも、残高を撮ったあとに出たものなら含まれます(まだ残高に反映されていないため)。<br>
-      💰の下には「✓ 今日までに引かれた分 / → これから引かれる分」も出ます(この期間の引き落とし＋🏠手渡しを、今日を境に分けた合計です)。</p>
-      <p>🏠<strong>大家さんへの手渡し</strong>は、<strong>残高を撮った日(当日を含む)以降に渡した分だけ</strong>💰から引かれます。撮った日より前に渡した分は、ATMで下ろした時点で口座残高がもう減っている(=💰の土台に反映済み)ため引きません(引くと二重引きになります)。見通しの各月からは従来どおり引かれます。</p>
+      帯の下には「✓ 今日までに引かれた分 / → これから引かれる分」も出ます(この期間の引き落とし＋🏠手渡しを、今日を境に分けた合計です)。</p>
+      <p>🏠<strong>大家さんへの手渡し</strong>は、<strong>残高を撮った日(当日を含む)以降に渡した分だけ</strong>手元に残る額から引かれます。撮った日より前に渡した分は、ATMで下ろした時点で口座残高がもう減っている(=計算の土台に反映済み)ため引きません(引くと二重引きになります)。</p>
+      <p>🏠<strong>大家さんへの借金(請求残額)</strong>: 大家さんのシートの「請求残額」をAIに読ませて取り込むと、「借金残り」と「来月いくら余れば完済できるか」が出ます。シートの数字は毎日変わるので、シートを見たら入れ直してください(手渡しを書き込むと、アプリ内の借金残りも自動で減ります)。シートはAIに<strong>読み取らせるだけ</strong>で、編集はさせません。</p>
       <p>記録は自動では消えず、<strong>数年分ためられます</strong>(容量は1年で数十KB程度とごくわずか)。画面上部の「◀ ▶」で過去の月をいつでも見返せます。給料は期間ごとに記録されるので、昔の月は当時の給料で計算されます。</p>
     </div>
 
@@ -2582,7 +2685,11 @@ var RESERVE_CASH = 3000;
 //   (引き落とし paymentsPart と同じ範囲ルール)。記録日より前の分は、現金をATMで下ろした時点で
 //   残高から減っている=反映済みのため引かない(引くと二重引きになる)。見通しの月次収支からも引く。
 //   古い保存データに tewatashi が無くても空配列で正常に動く(後方互換)
-var S = { salary: 0, payments: [], salaryHistory: {}, balance: null, fixedDays: {}, tewatashi: [] };
+// landlordDebt: 大家さんのシートに出ている「請求残額」のスナップショット { amount, date } | null(改修5)。
+//   シートは毎日変わるので、口座残高と同じ「いつ時点の数字か」方式で記録する。
+//   借金残り = amount − 記録日(当日を含む)以降の手渡し合計(0未満にはしない)。
+//   古い保存データに無ければ null で正常に動く(後方互換)
+var S = { salary: 0, payments: [], salaryHistory: {}, balance: null, fixedDays: {}, tewatashi: [], landlordDebt: null };
 var dirty = false;
 var lastSavedAt = "";
 var loadWarning = "";
@@ -2617,6 +2724,16 @@ function savingAmount(n) {
   var v = n - RESERVE_CASH;
   return v > 0 ? v : 0;
 }
+// 【改修5】大家さんへの借金残り = シートの請求残額(記録日時点) − 記録日(当日を含む)以降の手渡し合計。
+// シートの数字は毎日変わるので、口座残高と同じ「いつ時点か」方式(記録し直せば正しくなる)。
+// 記録が無ければ null。払いすぎ(マイナス)は over に入れて残りは0にする
+function debtLeft() {
+  if (!S.landlordDebt) return null;
+  var paid = 0;
+  S.tewatashi.forEach(function (t) { if (t.date >= S.landlordDebt.date) paid += t.amount; });
+  var v = S.landlordDebt.amount - paid;
+  return { left: v > 0 ? v : 0, paid: paid, over: v < 0 ? -v : 0 };
+}
 // 「積み立てに回せる額」の表示ブロック。既存の残額表示に追加するだけで、元の数字は置き換えない。
 // isCurrentPeriod: 表示中が今回の期間かどうかで文言を変える(過去・先の期間では「今回」と言わない)
 function savingBlockHtml(n, isCurrentPeriod) {
@@ -2641,7 +2758,8 @@ function num(n) { return String(n).replace(/\B(?=(\d{3})+(?!\d))/g, ","); }
 // 💰の面積帯(リデザイン採用案1c・2026-08-26)。口座残高(+給料)を1本の縦帯として
 // 金額に比例した面積で分割する。濃い塗り=手元に残る、薄い塗り=これから出る。
 // flex に金額をそのまま渡す(面積=金額。固定pxにすると意味が消える)。
-// 1行の最小高さは34pxを確保し、潰れる行・4件目以降は「他N件」に集約(ハンドオフ書の指定)。
+// 潰れる行・3件目以降は「他N件」に集約(改修5検証問題1: 行のmin-heightの合計が帯の高さを
+// 超えないよう、出る側の行は最大2行までに制限する)。
 // 残る額が0以下・出ていく額が0のときは帯が成立しないので出さない(従来表示のみ)
 function bandHtml(fin, period) {
   // 【改修4】帯の「これから出るぶん」に、残高の記録日以降の🏠手渡しも含める(💰の計算と同じ範囲)
@@ -2657,12 +2775,18 @@ function bandHtml(fin, period) {
   if (items.length === 0) return "";
   items.sort(function (a, b) { return b.amount - a.amount; });
   var totalAll = fin.finalLeft + outPart; // = 口座残高 + 足した給料
-  var H = 306, MINH = 34;
+  // 【改修5検証問題1対応】H は CSS「圧縮4段目」の .band { height } と必ず同じ値にすること。
+  // 出る側の行の最小高さ(CSS .band-row min-height 28px)×行数+gap が H を超えると帯から溢れるため、
+  // 出る側は最大2行(=個別2件、または 個別1件+「他N件」)に制限する。
+  // keep最小36 + 行28×2 + gap6 = 98 ≤ 104 で必ず収まる
+  var H = 104, MINH = 28;
   var shown = [], restAmt = 0, restCnt = 0, restOnly = null;
-  items.forEach(function (p) {
-    // 金額の大きい順に最大3件まで個別表示。一度集約が始まったら以降は全部「他N件」へ
+  items.forEach(function (p, i) {
+    // 金額の大きい順に個別表示。この件を個別にしたあと残りが出るなら、集約行に1枠を空けておく
+    var restWillExist = items.length - (shown.length + 1) > 0;
+    var slotLimit = restWillExist ? 1 : 2;
     var h = H * p.amount / totalAll;
-    if (shown.length < 3 && restCnt === 0 && h >= MINH) shown.push(p);
+    if (shown.length < slotLimit && restCnt === 0 && h >= MINH) shown.push(p);
     else { restAmt += p.amount; restCnt++; restOnly = p; }
   });
   var rowsHtml = shown.map(function (p) {
@@ -2912,7 +3036,7 @@ function sanitizeTewatashi(t) {
 }
 // 生データ→状態。不正な行は数えて捨てる(画面は必ず起動させる)
 function buildState(raw) {
-  var out = { salary: 0, payments: [], salaryHistory: {}, balance: null, fixedDays: {}, tewatashi: [] }, skipped = 0;
+  var out = { salary: 0, payments: [], salaryHistory: {}, balance: null, fixedDays: {}, tewatashi: [], landlordDebt: null }, skipped = 0;
   if (raw && typeof raw === "object") {
     if (typeof raw.salary === "number" && Number.isSafeInteger(raw.salary) && raw.salary >= 0 && raw.salary <= MAX_AMOUNT) out.salary = raw.salary;
     if (Array.isArray(raw.payments)) {
@@ -2971,6 +3095,16 @@ function buildState(raw) {
         skipped++;
       }
     }
+    // 大家さんへの請求残額(改修5): 口座残高と同じく、日付が実在し金額が 0〜上限の整数のときだけ受け入れる
+    if (raw.landlordDebt !== null && raw.landlordDebt !== undefined) {
+      var ld = raw.landlordDebt;
+      if (ld && typeof ld === "object" && typeof ld.date === "string" && isRealDate(ld.date)
+          && typeof ld.amount === "number" && Number.isSafeInteger(ld.amount) && ld.amount >= 0 && ld.amount <= MAX_AMOUNT) {
+        out.landlordDebt = { amount: ld.amount, date: ld.date };
+      } else {
+        skipped++;
+      }
+    }
     // 固定の引き落とし日: 鍵はカード名を正規化した文字列、値は { day: 1〜31, label: 表示名 }
     if (raw.fixedDays && typeof raw.fixedDays === "object" && !Array.isArray(raw.fixedDays)) {
       for (var fk in raw.fixedDays) {
@@ -3020,7 +3154,7 @@ function persist() {
     var pk = currentPeriod().start;
     if (S.salary > 0) S.salaryHistory[pk] = S.salary;
     else delete S.salaryHistory[pk];
-    localStorage.setItem(STORE_KEY, JSON.stringify({ salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory, balance: S.balance, fixedDays: S.fixedDays, tewatashi: S.tewatashi }));
+    localStorage.setItem(STORE_KEY, JSON.stringify({ salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory, balance: S.balance, fixedDays: S.fixedDays, tewatashi: S.tewatashi, landlordDebt: S.landlordDebt }));
   } catch (e) {
     alert("保存に失敗しました。ブラウザの保存領域が使えない状態です。控え(JSON)をコピーして退避してください。");
     return;
@@ -3175,14 +3309,16 @@ function render() {
     var balOld = S.balance.date < prevStart;
     var why = [];
     // 理由文は短く保つ(3本並んでも画面に収まるように。検証9のレイアウト対応)
-    if (salGuess && salaryUsed) why.push("今月の給料が未設定のため、前回の記録 " + yen(mSal) + " で計算しています。");
-    if (salMissing && salaryUsed) why.push("今月の給料が未入力のため、0円として計算しています。");
-    if (salStale) why.push("「給料は入っているか」の回答が前の期間のものです。今月の給料は未入金として計算しています。");
-    if (balOld) why.push("残高の記録が古い(前の期間より前)ため、その後の入金が反映されていないおそれがあります。");
+    // 【改修5・2026-09-12 ユーザー要望】「?」の原因が一目で分かるよう、
+    // 各理由を「原因: なにが起きているか → どうすれば確定するか」の形にそろえる
+    if (salGuess && salaryUsed) why.push("原因: 今月の給料が未記入です(前回の記録 " + yen(mSal) + " で仮計算中)。⚙設定で今月の給料を入れると確定します。");
+    if (salMissing && salaryUsed) why.push("原因: 今月の給料が未記入です(0円で仮計算中)。⚙設定で今月の給料を入れると確定します。");
+    if (salStale) why.push("原因: 「給料は入っているか」の回答が先月のままです(給料は未入金として仮計算中)。⚙設定の口座残高のチェックを答え直すと確定します。");
+    if (balOld) why.push("原因: 残高の記録が古いです(前の期間より前のスクショ)。残高スクショを撮り直して入れると確定します。");
     // 「給料が入っているか」を推測で決めた場合は確かめてもらう(検証11対応)。
     // ただし期間が変わればその推測は意味を失うので、今回の期間の回答のときだけ出す(検証12対応)
     var salAsk = S.balance.salaryAsk === true && salInfo.fresh;
-    if (salAsk) why.push("今月の給料がもう入っているか、⚙設定で確かめてください。");
+    if (salAsk) why.push("原因: 今月の給料がもう残高に入っているか、まだ確認できていません(推測で仮計算中)。⚙設定の口座残高のチェックで答えると確定します。");
     fin = {
       finalLeft: S.balance.amount + salaryPart - paymentsPart - tewPart,
       salaryPart: salaryPart,
@@ -3206,7 +3342,8 @@ function render() {
   // 期間バー(◀ ▶ で移動。記録は数年分残る)
   $("period-bar").innerHTML =
     '<button class="p-nav" id="btn-period-prev" type="button"' + (viewOffset <= MIN_OFFSET ? " disabled" : "") + '>◀ 前</button>'
-    + '<span class="p-label"><span class="p-sub">' + (isCurrent ? "今回の給料期間" : (isPast ? "過去の記録" : "先の期間")) + "</span><br>" + esc(period.label) + "</span>"
+    // 1行に収めるため、今回の期間はラベルなし。過去・先だけ短い印を後ろに付ける(改修5)
+    + '<span class="p-label">' + esc(period.label) + (isCurrent ? "" : '<span class="p-sub">(' + (isPast ? "過去" : "先") + ")</span>") + "</span>"
     + '<button class="p-nav" id="btn-period-next" type="button"' + (viewOffset >= MAX_OFFSET ? " disabled" : "") + '>次 ▶</button>';
   $("btn-period-prev").onclick = function () { if (viewOffset > MIN_OFFSET) { viewOffset--; render(); } };
   $("btn-period-next").onclick = function () { if (viewOffset < MAX_OFFSET) { viewOffset++; render(); } };
@@ -3220,25 +3357,54 @@ function render() {
   if (total + tewTotal > 0) {
     var flowPaid = paid + tewPaid, flowUp = upcoming + tewUpcoming;
     flowHtml = '<div class="flow2">'
-      + '<div class="flow-cell"><span class="f2-label">✓ 今日までに引かれた分</span><span class="f2-amt">' + yen(flowPaid) + "</span></div>"
-      + '<div class="flow-cell"><span class="f2-label">→ これから引かれる分</span><span class="f2-amt">' + yen(flowUp) + "</span></div>"
+      + '<div class="flow-cell"><span class="f2-label">✓ 今日まで</span><span class="f2-amt">' + yen(flowPaid) + "</span></div>"
+      + '<div class="flow-cell"><span class="f2-label">→ これから</span><span class="f2-amt">' + yen(flowUp) + "</span></div>"
       + "</div>"
-      + '<div class="flow-note">この期間の引き落とし' + (tewTotal > 0 ? "と🏠手渡し" : "") + "の合計 " + yen(total + tewTotal) + "(今日=" + esc(today) + "基準)</div>";
+      + '<div class="flow-note">合計 ' + yen(total + tewTotal) + "(この期間の引き落とし" + (tewTotal > 0 ? "＋🏠手渡し" : "") + "・今日基準)</div>";
+  }
+  // 【改修5】🏠大家さんへの借金残り+完済の見通し(今回の期間の画面にだけ出す)。
+  // 借金残り = シートの請求残額(記録日時点) − 記録日以降の手渡し。
+  // 「来月いくら余れば完済できるか」= 借金残りそのもの。見通し計算(forecastRows)の
+  // 来月の余り見込みと比べて、足りるか足りないかも添える
+  if (isCurrent) {
+    var dl = debtLeft();
+    if (dl) {
+      if (dl.left > 0) {
+        var fc = forecastRows();
+        var nextCum = fc.length > 1 ? fc[1].cum : null;
+        var payoff = "来月 " + yen(dl.left) + " 余れば完済。";
+        // 📥側が「仮の数字」のときは見込み額にも(仮)を添え、断定しない(検証問題8)
+        var kariMark = fin && fin.kari ? "(仮)" : "";
+        if (nextCum !== null) {
+          if (nextCum >= dl.left) payoff += "いまの余り見込みは " + yen(nextCum) + kariMark + " → 完済できそうです。";
+          else if (nextCum > 0) payoff += "いまの余り見込みは " + yen(nextCum) + kariMark + " → あと " + yen(dl.left - nextCum) + " 足りません。";
+          else payoff += "いまの見込みでは来月は余りが出ません(" + yen(nextCum) + kariMark + ")。";
+        }
+        flowHtml += '<div class="debt-row"><span class="f2-label">🏠 大家さんへの借金残り</span><span class="debt-amt">' + yen(dl.left) + "</span></div>"
+          + '<div class="flow-note">' + payoff + "</div>";
+      } else {
+        flowHtml += '<div class="debt-row debt-clear"><span class="f2-label">🏠 大家さんへの借金</span><span class="debt-amt">✓ 完済</span></div>'
+          + (dl.over > 0 ? '<div class="flow-note">記録より ' + yen(dl.over) + " 多く渡しています(シートの最新をAI読み取りで入れ直すと正確になります)。</div>" : "");
+      }
+    }
   }
   if (isCurrent && !S.balance) {
-    // 残高未入力だと💰カードが出ない。主役の数字への入口をここで案内する
-    flowHtml += '<div class="empty-note" style="margin-top:8px">口座残高を入れると「💰 最終的に手元に残る」額が出ます(⚙ 設定・使い方)。</div>';
+    // 残高未入力だと📥カードが出ない。主役の数字への入口をここで案内する
+    flowHtml += '<div class="empty-note" style="margin-top:8px">口座残高を入れると「📥 積み立てに回せる金額」と面積帯が出ます(⚙ 設定・使い方)。</div>';
   }
   $("zangaku-card").innerHTML = flowHtml;
   $("zangaku-card").hidden = !flowHtml;
 
+  // 【改修5】給料は折りたたみに。金額は summary に出すので、閉じたままでも読める
   if (isCurrent) {
+    $("salary-head").textContent = "💴 給料(手取り) " + yen(S.salary);
     $("salary-row").innerHTML =
-      '<span class="s-label">給料(手取り)</span>'
+      '<span class="s-label">今回の期間の給料</span>'
       + '<span class="s-amount">' + yen(S.salary) + "</span>"
       + '<button class="chip-btn" id="btn-salary-edit" type="button">変更</button>';
     $("btn-salary-edit").onclick = function () { openSettings(true); };
   } else {
+    $("salary-head").textContent = "💴 この期間の給料(記録) " + yen(sal);
     $("salary-row").innerHTML =
       '<span class="s-label">この期間の給料(記録)</span>'
       + '<span class="s-amount">' + yen(sal) + "</span>"
@@ -3247,20 +3413,31 @@ function render() {
 
   // ②「前の期間の残りから引くと」カードは廃止。その役割は下の「最終的に手元に残る」が引き継ぐ。
 
-  // 「最終的に手元に残る」カード(計算は上の fin で済ませてある)
+  // 主役カード(計算は上の fin で済ませてある)。
+  // 【改修5・2026-09-12 ユーザー要望】大きい数字は「📥積み立てに回せる金額」の1つだけにする。
+  // 「手元に残る」の金額表示は面積帯の中の1回だけ(以前は大きい数字と帯で2回出ていた)。
+  // 積み立ての別枠ブロック(savingBlockHtml)もこのカードに統合して廃止
   var bhtml = "";
   if (fin) {
-    bhtml = '<div class="b-label"><span>💰 最終的に手元に残る</span>'
+    var sv = savingAmount(fin.finalLeft);
+    var svZero = sv === 0;
+    bhtml = '<div class="b-label"><span>📥 今回、積み立てに回せる金額</span>'
         + (fin.kari ? '<span class="kari-badge">? 仮の数字</span>' : "")
         + '<button class="chip-btn" id="btn-balance-edit" type="button">変更</button></div>'
-      + '<div class="b-amount' + (fin.finalLeft < 0 ? " minus" : "") + '">' + yen(fin.finalLeft)
+      + '<div class="b-amount' + (svZero ? " saving-zero-main" : "") + '">' + yen(sv)
         + (fin.kari ? '<span class="kari-mark">?</span>' : "") + "</div>"
+      + (svZero
+          ? '<div class="saving-note">⚠ ' + (fin.finalLeft < RESERVE_CASH
+              ? "手元に残す " + yen(RESERVE_CASH) + " に届かないため、積み立てには回せません"
+              : "手元の " + yen(RESERVE_CASH) + " は確保できていますが、積み立てに回せる分はありません") + "</div>"
+          : "")
       // リデザイン(2026-08-26 採用案1c): 口座残高の面積帯。金額の大小が面積で伝わる
       + bandHtml(fin, period);
     // 引かれているのは「これから出るぶん」だけでなく「残高を撮ったあとに出たぶん」も含むので、
     // 一覧の「✓済」と食い違わない言い方にする(問題4対応)。
     // リデザイン方針で説明文は折りたたみ(details)へ。文言は従来のまま
-    var bMore = '<div class="b-detail">口座残高 ' + yen(S.balance.amount) + "(" + esc(S.balance.date) + "時点)"
+    var bMore = '<div class="b-detail">積み立てに回せる金額 = 手元に残る ' + yen(fin.finalLeft) + " − 手元に残す現金 " + yen(RESERVE_CASH) + "(0円未満にはしません)。この金額は追加の目安です。</div>"
+      + '<div class="b-detail">口座残高 ' + yen(S.balance.amount) + "(" + esc(S.balance.date) + "時点)"
         + (fin.salInc ? " ＋ 今月の給料(すでに残高に入っています)" : " ＋ 今月の給料 " + yen(fin.salaryPart))
         + " − 残高に反映されていない引き落とし " + yen(fin.paymentsPart)
         + (fin.paymentsCount > 0
@@ -3293,17 +3470,15 @@ function render() {
       // 文言は短く(縦に伸ばしすぎない。検証7問題5対応)
       bhtml += '<div class="b-detail b-old">! 残高の記録日が未来です(残る額が多めに見えます)。撮った日に直してください。</div>';
     }
-    // 📥 積み立てに回せる金額(追加表示。元の💰の数字はそのまま残す)
-    bhtml += savingBlockHtml(fin.finalLeft, isCurrent);
   }
   $("balance-card").innerHTML = bhtml;
   $("balance-card").hidden = !bhtml;
   if (bhtml) $("btn-balance-edit").onclick = function () { openSettings(false); };
 
-  $("list-head").textContent = "この期間の引き落とし(" + rows.length + "件)";
+  $("list-head").textContent = "この期間の引き落とし(" + rows.length + "件) " + yen(total);
   if (rows.length === 0) {
     $("pay-list").innerHTML = isCurrent
-      ? '<div class="empty-note">まだ引き落としが入っていません。カードアプリの支払予定スクショを Claude に送って、返ってきた4列テキストを「📋 貼り付けて取り込む」に貼ってください。</div>'
+      ? '<div class="empty-note">まだ引き落としが入っていません。「📋 お願い文をコピー」を押し、カードアプリの支払予定スクショと一緒にAIへ送って、返ってきたテキストを画面いちばん下の欄に貼ってください。</div>'
       : '<div class="empty-note">この期間の引き落とし記録はありません。</div>';
   } else {
     $("pay-list").innerHTML = rows.map(function (p) {
@@ -3331,7 +3506,22 @@ function render() {
 // 記入マスはその場で書ける(全画面パネルを開かない「手書き感覚」)。行タップで編集・削除
 function renderTewatashi(period) {
   var rows = periodTewatashi(period);
-  var html = '<div class="list-head">🏠 大家さんへ手渡し(' + rows.length + "件)</div>";
+  // 【改修5】見出しは折りたたみの summary へ。借金残りがあれば summary でも見えるようにする。
+  // 借金は「いま時点」の数字なので、過去・先の期間を表示中は出さない(検証問題7: 当時の借金と誤読させない)
+  var isCur = period.start === currentPeriod().start;
+  var dl = isCur ? debtLeft() : null;
+  $("tew-head").textContent = "🏠 手渡し(" + rows.length + "件)"
+    + (dl && dl.left > 0 ? "・借金 " + yen(dl.left) : "");
+  var html = "";
+  // 借金(シートの請求残額)の詳細。数字の入れ方はAI読み取りのみ(手入力欄は作らない。ユーザー決定)
+  if (dl) {
+    html += '<div class="hint" style="margin:8px 0">シートの請求残額 ' + yen(S.landlordDebt.amount) + "(" + esc(S.landlordDebt.date) + "時点) − その後の手渡し " + yen(dl.paid)
+      + " = 借金残り <strong>" + yen(dl.left) + "</strong>"
+      + (dl.over > 0 ? "(" + yen(dl.over) + " 多く渡しています)" : "")
+      + "。シートの新しい残額は「📋 AIへのお願い文をコピー」→ ExcelやスクショをAIに渡す → 返ってきた行を下の欄に貼ると更新されます。</div>";
+  } else if (isCur) {
+    html += '<div class="hint" style="margin:8px 0">大家さんのシートの「請求残額」も記録できます。「📋 お願い文をコピー」→ ExcelやスクショをAIに渡す → 返ってきた <code>請求残額,日付,金額</code> の行を下の欄に貼ると、借金残りと完済の見通しが出ます。</div>';
+  }
   html += rows.map(function (t) {
     return '<button class="pay-row tew-row" type="button" data-tid="' + esc(t.id) + '">'
       + '<span class="pay-badge badge-tew">👐手渡し</span>'
@@ -3403,7 +3593,7 @@ function mergeCommaAmount(parts) {
 //           balance: {amount,date}|null, salary: {amount,date,periodStart}|null }
 function parseImportText(text) {
   var period = currentPeriod();
-  var ok = [], bad = [], balance = null, salary = null;
+  var ok = [], bad = [], balance = null, salary = null, debt = null;
   var seen = {}; // 貼り付け内の重複検出用
   var lines = String(text || "").split(/\r?\n/);
   for (var i = 0; i < lines.length; i++) {
@@ -3437,6 +3627,27 @@ function parseImportText(text) {
       var salRes = resolveSalaryIncludedInfo(bDate);
       balance = { amount: bAmt, date: bDate, future: bDate > todayStr(),
         salaryIncluded: salRes.included, salaryAsk: salRes.ask };
+      continue;
+    }
+    // 【改修5】「請求残額,日付,金額」の行 = 大家さんへの借金(シートの請求残額)の更新。
+    // 残高行と同型の特別行。「借金」でも受け付ける。複数あれば最後の1行を採用
+    if (cols[0].trim() === "請求残額" || cols[0].trim() === "借金") {
+      var dRest = cols.slice(1);
+      var dDateGiven = dRest.length > 0 && !!normalizeDate(dRest[0]);
+      var dDate = dDateGiven ? normalizeDate(dRest[0]) : todayStr();
+      var dAmtParts = dDateGiven ? dRest.slice(1) : dRest;
+      if (dAmtParts.length === 0) {
+        bad.push({ line: lines[i], reason: "請求残額の行は「請求残額,日付,金額」の形です(日付を省くときは「請求残額,金額」)。" });
+        continue;
+      }
+      var dMerge = mergeCommaAmount(dAmtParts);
+      if (dMerge.amount === null || dMerge.restIndex !== dAmtParts.length) {
+        bad.push({ line: lines[i], reason: "請求残額の金額が読めません。「請求残額,日付,金額」の形にしてください(金額は数字だけ)。" });
+        continue;
+      }
+      var dAmt = parseSalary(dMerge.amount); // 0〜上限(0円=完済も受け付ける)
+      if (isNaN(dAmt)) { bad.push({ line: lines[i], reason: "請求残額の金額が「0〜99,999,999(1億円未満)の整数の円」として読めません。" }); continue; }
+      debt = { amount: dAmt, date: dDate, future: dDate > todayStr() };
       continue;
     }
     // 【改修1】「給料,支給日,差引支給額」の行 = 給料の反映(引き落としではない)。
@@ -3526,7 +3737,7 @@ function parseImportText(text) {
       dateFixed: dateFixed, dateOriginal: dateOriginal // 固定日で上書きしたら、元の日付も見せる(黙って変えない)
     });
   }
-  return { ok: ok, bad: bad, balance: balance, salary: salary };
+  return { ok: ok, bad: bad, balance: balance, salary: salary, debt: debt };
 }
 
 function renderImportPreview() {
@@ -3546,8 +3757,9 @@ function renderImportPreview() {
 
   var bal = pendingRows.balance;
   var salRow = pendingRows.salary;
-  if (ok.length === 0 && !bal && !salRow) {
-    html += '<div class="notice notice-info">取り込める行がありませんでした。形式は <code>引き落とし日,カード名,金額,メモ</code> の4列(口座残高は <code>残高,日付,金額</code>、給与明細は <code>給料,支給日,差引支給額</code>)です。</div>';
+  var debtRow = pendingRows.debt;
+  if (ok.length === 0 && !bal && !salRow && !debtRow) {
+    html += '<div class="notice notice-info">取り込める行がありませんでした。形式は <code>引き落とし日,カード名,金額,メモ</code> の4列(口座残高は <code>残高,日付,金額</code>、給与明細は <code>給料,支給日,差引支給額</code>、大家さんのシートは <code>請求残額,日付,金額</code>)です。</div>';
     area.innerHTML = html;
     return;
   }
@@ -3594,6 +3806,17 @@ function renderImportPreview() {
       html += '<div class="notice notice-warn"><div class="n-head"><span class="warn-ic">!</span><span>残高の記録日(' + esc(bal.date) + ")が未来の日付です。スクショを撮った日になっているか確かめてください。</span></div></div>";
     }
   }
+  // 【改修5】大家さんへの請求残額(借金)の確認表示。変更前後を並べる(残高・給料と同じ流儀)
+  if (debtRow) {
+    html += '<div class="notice notice-info">🏠 大家さんへの請求残額(借金)を ' + yen(debtRow.amount) + "(" + esc(debtRow.date) + "時点)に更新します。"
+      + (S.landlordDebt && S.landlordDebt.amount !== debtRow.amount
+          ? "<br><strong>" + yen(S.landlordDebt.amount) + "(" + esc(S.landlordDebt.date) + "時点) → " + yen(debtRow.amount) + " に変わります。</strong>"
+          : "")
+      + "<br>この日付(当日を含む)以降に書いた🏠手渡しが、借金残りから引かれます。</div>";
+    if (debtRow.future) {
+      html += '<div class="notice notice-warn"><div class="n-head"><span class="warn-ic">!</span><span>請求残額の記録日(' + esc(debtRow.date) + ")が未来の日付です。シートを見た日になっているか確かめてください。</span></div></div>";
+    }
+  }
   // 重複行は既定で「除外」する。同じ明細の画像を2回読ませても二重に入らないようにするため(既定=安全側)
   var newCount = ok.length - dupCount;
   if (ok.length > 0) {
@@ -3638,18 +3861,26 @@ function renderImportPreview() {
     // そのときは「残高だけ更新する」ボタンを出す(重複バグ対応。doImport(true) は
     // 重複行を全部スキップしても pendingRows.balance は必ず適用するため、これで安全に反映できる)
     // ボタンの文言に、引き落とし以外に反映されるもの(残高・給料)も出す(黙って反映しない)
-    var extras = (bal ? "+残高" : "") + (salRow ? "+給料" : "");
-    var extrasName = bal && salRow ? "残高と給料" : (salRow ? "給料" : "残高");
+    var extras = (bal ? "+残高" : "") + (salRow ? "+給料" : "") + (debtRow ? "+請求残額" : "");
+    var extraNames = [];
+    if (bal) extraNames.push("残高");
+    if (salRow) extraNames.push("給料");
+    if (debtRow) extraNames.push("請求残額");
+    var extrasName = extraNames.join("と");
     if (newCount > 0) {
       html += '<button class="btn btn-primary" id="btn-import-skip-dup" type="button">取り込む(' + newCount + "件。すでにある " + dupCount + "件は除く" + extras + ")</button>";
-    } else if (bal || salRow) {
+    } else if (bal || salRow || debtRow) {
       html += '<button class="btn btn-primary" id="btn-import-skip-dup" type="button">' + extrasName + "だけ反映する(重複する " + dupCount + "件は含めません)</button>";
     }
     html += '<button class="btn btn-ghost" id="btn-import-all" type="button">それでも重複を含めて全部入れる(' + ok.length + "件)</button>";
   } else if (ok.length > 0) {
-    html += '<button class="btn btn-primary" id="btn-import-all" type="button">取り込む(' + ok.length + "件" + (bal ? "+残高" : "") + (salRow ? "+給料" : "") + ")</button>";
+    html += '<button class="btn btn-primary" id="btn-import-all" type="button">取り込む(' + ok.length + "件" + (bal ? "+残高" : "") + (salRow ? "+給料" : "") + (debtRow ? "+請求残額" : "") + ")</button>";
   } else {
-    html += '<button class="btn btn-primary" id="btn-import-all" type="button">' + (bal && salRow ? "残高と給料を反映する" : (salRow ? "給料を反映する" : "残高を更新する")) + "</button>";
+    var onlyNames = [];
+    if (bal) onlyNames.push("残高");
+    if (salRow) onlyNames.push("給料");
+    if (debtRow) onlyNames.push("請求残額");
+    html += '<button class="btn btn-primary" id="btn-import-all" type="button">' + onlyNames.join("と") + "を反映する</button>";
   }
   html += "</div>";
   area.innerHTML = html;
@@ -3689,16 +3920,21 @@ function renderImportPreview() {
       }
       salApplied = sr;
     }
-    if (added > 0 || balUpdated || salApplied) {
+    // 【改修5】大家さんへの請求残額(借金)の反映
+    var debtUpdated = false;
+    if (pendingRows.debt) {
+      S.landlordDebt = { amount: pendingRows.debt.amount, date: pendingRows.debt.date };
+      debtUpdated = true;
+    }
+    if (added > 0 || balUpdated || salApplied || debtUpdated) {
       markDirty();
       persist(); // 取り込みは操作が重いので即保存(保存バーにも反映される)
     }
     pendingRows = null;
     $("import-preview").innerHTML = ""; // プレビューを残すと同じボタンを2度押せてしまう(問題7対応)
     $("import-text").value = "";
-    $("import-overlay").hidden = true;
     render();
-    if (added > 0 || balUpdated || salApplied) {
+    if (added > 0 || balUpdated || salApplied || debtUpdated) {
       var doneMsg = added > 0 ? "✓ " + added + "件を取り込みました。" : "";
       if (outsideView > 0) {
         doneMsg += "うち " + outsideView + "件は表示中の期間の外なので、この画面には出ません(◀ ▶ でその期間を開くと見られます)。";
@@ -3713,6 +3949,14 @@ function renderImportPreview() {
           : "今月の給料は入っていない扱いで計算します(給料を足します)。違うときは⚙設定・使い方の「口座残高」のチェックで直せます。";
         if (S.balance.date > todayStr()) {
           doneMsg += "! 記録日が未来の日付です。スクショを撮った日になっているか確かめてください。";
+        }
+      }
+      if (debtUpdated) {
+        var dl = debtLeft();
+        doneMsg += "🏠 大家さんへの請求残額を " + yen(S.landlordDebt.amount) + "(" + S.landlordDebt.date + "時点)にしました。"
+          + (dl && dl.paid > 0 ? "その後の手渡し " + yen(dl.paid) + " を引いた借金残りは " + yen(dl.left) + " です。" : "");
+        if (S.landlordDebt.date > todayStr()) {
+          doneMsg += "! 請求残額の記録日が未来の日付です。シートを見た日になっているか確かめてください。";
         }
       }
       $("load-warning").innerHTML = '<div class="notice notice-info">' + esc(doneMsg) + "</div>" + $("load-warning").innerHTML;
@@ -3924,96 +4168,8 @@ function forecastStart(per, sal, total, tew) {
   }
   return { kind: "salary", value: sal - total - (tew || 0) };
 }
-function renderForecast() {
-  var rows = forecastRows();
-  var html = "";
-  // データが何も無いときに「黒字が続く見込み」と言わない(¥0 は黒字ではない)
-  var hasData = S.salary > 0 || S.payments.length > 0 || S.tewatashi.length > 0 || !!S.balance;
-  if (!hasData) {
-    $("forecast-body").innerHTML = '<div class="notice notice-info">まだ計算するものがありません。'
-      + "給料を入れて、カードの支払予定を取り込むと、"
-      + "「今月の残りで来月の赤字をまかなえるか」がここに出ます。</div>";
-    return;
-  }
-  // 結論を最初に: どこかでマイナスになるか / いちばん少ない月
-  var firstMinus = null, lowest = rows[0];
-  rows.forEach(function (r) {
-    if (r.cum < 0 && firstMinus === null) firstMinus = r;
-    if (r.cum < lowest.cum) lowest = r;
-  });
-  if (firstMinus) {
-    html += '<div class="notice notice-warn"><div class="n-head"><span class="warn-ic">!</span><span>'
-      + "<strong>" + esc(firstMinus.per.label) + " で " + yen(-firstMinus.cum) + " 足りなくなる見込み</strong>です。"
-      + "それまでの残りでは埋めきれません。</span></div></div>";
-  } else {
-    var lastLabel = rows[rows.length - 1].per.label;
-    html += '<div class="notice notice-info"><strong>' + esc(lastLabel) + " まで黒字が続く見込みです。</strong><br>"
-      + "いちばん少なくなるのは " + esc(lowest.per.label) + " の <strong>" + yen(lowest.cum) + "</strong> です。"
-      + "赤字の月があっても、前の月の残りで埋められています。</div>";
-  }
-  // 見方の説明(学生でも読めば分かる短い凡例。数式で見せる方針をここで宣言する)
-  html += '<div class="panel"><div class="hint">💰 の数字がいちばん大事です(このアプリが出す「本当の答え」)。'
-    + "<strong>①請求される予定金額が引かれて余りが出る → ②その余りに給料が足される</strong>、という順番で"
-    + "1行ずつ書いています。余った分はそのまま来月に引き継がれ、また①②が繰り返されます。</div>";
-  rows.forEach(function (r) {
-    html += '<div class="fc-row' + (r.cum < 0 ? " fc-minus" : "") + '">'
-      + '<div class="fc-head">' + (r.isNow ? "▶ " : "") + esc(r.per.label)
-        + (r.isNow ? '<span class="fc-tag">今月</span>' : "")
-        + (r.salGuess ? '<span class="fc-tag fc-tag-guess">給料は見込み</span>' : "")
-        + (r.count === 0 && !r.isNow ? '<span class="fc-tag fc-tag-guess">明細まだ</span>' : "")
-      + "</div>";
-
-    // ① いちばん大事な数字(💰実際に残る見込み)を、そこに至る2つの段階(①請求を引く ②給料を足す)に
-    // 分けて見せる。「残高→請求される予定金額が引かれる→余った分は来月の給料と合わせて次に使われる」
-    // というお金の流れそのままの順番で書く(ユーザー要望: 学生でも分かるように)
-    var steps = [], bigLabel = "💰 実際に残る見込み";
-    if (r.isNow && r.start && r.start.kind === "balance") {
-      // 【改修4】残高の記録日以降の🏠手渡しも①で一緒に引く(メイン画面の💰と同じ式)
-      var afterCharge = r.start.balanceAmount - r.start.paymentsPart - (r.start.tewPart || 0);
-      steps.push("① 口座残高 " + yen(r.start.balanceAmount) + "(" + esc(r.start.balanceDate) + "時点)"
-        + " − これから引き落とされる予定 " + yen(r.start.paymentsPart)
-        + (r.start.tewPart > 0 ? " − 残高を撮った日以降の🏠手渡し " + yen(r.start.tewPart) : "")
-        + " = 余り " + yen(afterCharge));
-      if (r.start.salaryPart > 0) {
-        steps.push("② 余り " + yen(afterCharge) + " ＋ まだ入っていない今月の給料 " + yen(r.start.salaryPart) + " = " + yen(r.cum));
-      } else {
-        steps.push("② 今月の給料はすでにこの残高に入っているので、①の余り " + yen(afterCharge) + " がそのまま = " + yen(r.cum));
-      }
-    } else if (r.isNow) {
-      bigLabel = "📅 今月の給料だけで見ると";
-      steps.push("給料 " + yen(r.sal) + " − 引き落とし " + yen(r.total) + (r.count > 0 ? "(" + r.count + "件)" : "(記録なし)")
-        + (r.tew > 0 ? " − 🏠手渡し " + yen(r.tew) : "") + " = " + yen(r.cum));
-    } else {
-      // 来月以降: 前の月の余りに、その月の給料日(25日)に入る給料を足してから、その月の請求(と手渡し)を引く
-      var withSalary = r.prevCum + r.sal;
-      steps.push("① 前の月の残り " + yen(r.prevCum) + " ＋ この月の給料 " + yen(r.sal) + " = 使えるお金 " + yen(withSalary));
-      steps.push("② 使えるお金 " + yen(withSalary) + " − この月の引き落とし " + yen(r.total)
-        + (r.count > 0 ? "(" + r.count + "件)" : "(記録なし)")
-        + (r.tew > 0 ? " − 🏠手渡し " + yen(r.tew) : "") + " = " + yen(r.cum));
-    }
-    html += '<div class="fc-big-label">' + bigLabel + "</div>"
-      + '<div class="fc-big' + (r.cum < 0 ? " fc-neg" : "") + '">' + yen(r.cum)
-        + (r.cum < 0 ? '<span class="fc-neg-tag">足りません</span>' : "") + "</div>"
-      + '<div class="fc-formula">' + steps.join("<br>") + "</div>";
-
-    // ② 今月・残高ありのときだけ、「給料だけならこう」という参考の数字も添える(混同しないよう小さく)
-    if (r.isNow && r.start && r.start.kind === "balance") {
-      html += '<div class="fc-ref">📅 参考(貯金を考えない今月だけの成績): 給料 ' + yen(r.sal) + " − 引き落とし " + yen(r.total)
-        + (r.count > 0 ? "(" + r.count + "件)" : "(記録なし)")
-        + (r.tew > 0 ? " − 🏠手渡し " + yen(r.tew) : "") + ' = <span class="' + (r.monthOnly < 0 ? "fc-neg" : "") + '">'
-        + yen(r.monthOnly) + "</span>という成績のうえで、口座残高をもとに計算し直したものが上の💰です。</div>";
-    }
-    html += "</div>";
-  });
-  html += "</div>";
-  // 期間の外(6ヶ月より先)に引き落としが残っているかの注意
-  var lastEnd = rows[rows.length - 1].per.end;
-  var beyond = S.payments.filter(function (p) { return p.date > lastEnd; }).length;
-  if (beyond > 0) {
-    html += '<div class="notice notice-info">' + beyond + "件はこの表より先の日付です(◀ ▶ でその期間を開くと見られます)。</div>";
-  }
-  $("forecast-body").innerHTML = html;
-}
+// 【改修5・2026-09-12】見通しパネル(renderForecast)はユーザー要望で廃止。
+// 計算部(forecastSpan/forecastRows/forecastStart)は「借金の完済見通し」で使うため残している
 
 // ---------- AIへのお願い文 ----------
 // コピーして写真と一緒に ChatGPT 等のAIへ渡すと、このアプリに貼れる4列が返ってくる文面。
@@ -4022,9 +4178,9 @@ function renderForecast() {
 // これがないと「年なしの日付」や「残高の日付なし」を正しく today に寄せられない)
 function aiPrompt() {
   return [
-    "スマホのスクショを渡します。画像を読み取って、下の形のCSV行だけを返してください(前置き・説明・要約は書かない)。",
+    "スマホのスクショやExcelファイルを渡します。読み取って、下の形のCSV行だけを返してください(前置き・説明・要約は書かない)。",
     "**今日は " + todayStr() + " です。** 日付が書かれていないときはこの日付を使ってください。",
-    "クレジットカードの「支払予定」画面と、銀行口座の「残高」画面を、まとめて何枚渡してもかまいません。",
+    "クレジットカードの「支払予定」画面、銀行口座の「残高」画面、大家さんの家賃シート(Excel・スクショ)を、まとめて何枚渡してもかまいません。",
     "",
     "【カードの支払予定の画面】= 引き落とし1件につき1行:",
     "引き落とし日,カード名,金額,メモ",
@@ -4043,6 +4199,14 @@ function aiPrompt() {
     "良い例: 給料,2026-08-25,331026",
     "悪い例: 給料,2026-08-25,331,026 (金額にカンマを入れると取り込めません)",
     "",
+    "【大家さんの家賃シート(Excel・スクショ)】= 1つにつき1行:",
+    "請求残額,日付,金額",
+    "先頭は必ず「請求残額」という文字そのままにしてください。",
+    "金額は「いま大家さんに払うべき残りの合計」(未払い・繰り越しを含む今日時点の残額)です。月々の家賃の額と間違えないでください。",
+    "日付はシートの最終更新日が分かればその日、分からなければ今日(" + todayStr() + ")にしてください。",
+    "シートは読み取るだけにして、内容の変更・編集は絶対にしないでください。",
+    "良い例: 請求残額,2026-09-12,263739",
+    "",
     "ルール:",
     "- 日付は YYYY-MM-DD の形にする",
     "- 引き落とし日は画面の引き落とし予定日をそのまま。年が書かれていない日付(8/10 など)は、今日(" + todayStr() + ")から見て直近の未来の日付として年を補う",
@@ -4050,7 +4214,7 @@ function aiPrompt() {
     "- カード名は「楽天」「三井住友」のような呼び名だけ。カード番号・有効期限・口座番号は絶対に書かない",
     "- 金額は整数の円。カンマ・¥マーク・小数は書かない(良い例: 15623 / 悪い例: 15,623 や ¥15,623)",
     "- メモは任意(「8月分」など)。メモの中にカンマ「,」は使わない(「、」に置き換える)",
-    "- 支払予定の行・残高の行・給料の行が混ざってもよい。そのまま続けて書く",
+    "- 支払予定の行・残高の行・給料の行・請求残額の行が混ざってもよい。そのまま続けて書く",
     "- 読み取れない画像があれば、最後に「○枚目は読み取れませんでした」と1行だけ書く"
   ].join("\n");
 }
@@ -4190,7 +4354,7 @@ function saveSalary() {
   render();
 }
 function showExport() {
-  var json = JSON.stringify({ app: "給料残額", version: 1, savedAt: new Date().toISOString(), salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory, balance: S.balance, fixedDays: S.fixedDays, tewatashi: S.tewatashi }, null, 1);
+  var json = JSON.stringify({ app: "給料残額", version: 1, savedAt: new Date().toISOString(), salary: S.salary, payments: S.payments, salaryHistory: S.salaryHistory, balance: S.balance, fixedDays: S.fixedDays, tewatashi: S.tewatashi, landlordDebt: S.landlordDebt }, null, 1);
   $("export-area").innerHTML =
     '<textarea id="export-text" readonly></textarea>'
     + '<button class="btn btn-outline" id="btn-copy" type="button" style="margin-top:8px">全文コピー</button>'
@@ -4224,6 +4388,7 @@ function showImportJson() {
     // 給料の期間別記録(salaryHistory)だけの控えも「有効なデータあり」として扱う(問題5対応: 「空の状態で置き換える」という文言が実態と食い違わないように)
     if (r.state.payments.length === 0 && r.state.salary === 0 && Object.keys(r.state.salaryHistory).length === 0
         && r.state.balance === null && r.state.tewatashi.length === 0
+        && r.state.landlordDebt === null && Object.keys(r.state.fixedDays).length === 0 // 改修5検証問題6: 借金・固定日だけの控えも有効扱い
         && !(Array.isArray(raw.payments) && raw.payments.length === 0)) {
       if (!confirm("この控えからは有効なデータが見つかりませんでした。それでも空の状態で置き換えますか?")) return;
     }
@@ -4260,12 +4425,27 @@ function init() {
   };
   $("btn-export").onclick = showExport;
   $("btn-import-json").onclick = showImportJson;
-  $("btn-import").onclick = function () { pendingRows = null; renderImportPreview(); $("ai-prompt-area").innerHTML = ""; $("import-overlay").hidden = false; };
-  $("btn-ai-prompt").onclick = showAiPrompt;
-  $("btn-forecast").onclick = function () { renderForecast(); $("forecast-overlay").hidden = false; };
-  $("btn-forecast-close").onclick = function () { $("forecast-overlay").hidden = true; };
-  $("btn-import-close").onclick = function () { pendingRows = null; $("import-overlay").hidden = true; };
-  $("btn-parse").onclick = function () { pendingRows = parseImportText($("import-text").value); renderImportPreview(); };
+  // 【改修5】取り込みシートは廃止。メイン画面最下部の欄に貼ると即プレビューが出る。
+  // 「📋 AIへのお願い文をコピー」は1タップでコピー(できない環境では全文を表示して手動コピー)
+  $("btn-copy-prompt").onclick = function () {
+    var text = aiPrompt();
+    var btn = $("btn-copy-prompt");
+    var ok = function () {
+      btn.textContent = "✓ コピーしました";
+      setTimeout(function () { btn.textContent = "📋 お願い文をコピー"; }, 4000);
+      $("ai-prompt-area").innerHTML = "";
+    };
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(ok, function () { showAiPrompt(); });
+    } else {
+      showAiPrompt(); // コピーAPIが使えない環境(古いブラウザ等)は全文表示に切り替え
+    }
+  };
+  $("import-text").oninput = function () {
+    var t = $("import-text").value;
+    pendingRows = t.trim() === "" ? null : parseImportText(t);
+    renderImportPreview();
+  };
   $("btn-manual").onclick = function () { openEdit(null); };
   // 決定ボタンは編集パネルの対象(引き落とし/手渡し)で保存先を分ける(改修2)
   $("btn-edit-ok").onclick = function () { if (editMode === "tew") saveTewEdit(); else saveEdit(); };
