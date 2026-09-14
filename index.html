@@ -28,7 +28,7 @@
     --line: #C9CDD4;
     --blue: #0058A3;         /* 主ボタン・済(白文字と7.6:1) */
     --blue-bg: #E5F0FA;
-    --orange: #8A4B00;       /* これから(7.1:1) */
+    --orange: #8A4B00;       /* 未払い(7.1:1) */
     --orange-bg: #FCEBD4;
     --warn: #9A3412;         /* 警告・破壊的操作(白文字と7:1) */
     --warn-bg: #FFF4E5;
@@ -1672,7 +1672,7 @@
     border-width: 2px;
     border-color: #8B7C65;
   }
-  /* バッジは「二重線の枠」。✓済(実線の丸)・→これから(点線の角)と
+  /* バッジは「二重線の枠」。✓済(実線の丸)・→未払い(点線の角)と
      3つとも形が違うので、白黒でも取り違えない */
   .badge-tew {
     border-color: var(--ink);
@@ -1875,8 +1875,25 @@
   /* 状態テキスト自体に✓/!が含まれるので、第3層が足す飾りの✓/!は消す(二重表示防止) */
   .save-done::before, .save-dirty::before { content: none; }
 
-  /* 【改修4・2026-09-06】出入りブロック(✓今日までに引かれた分 / →これから引かれる分)。
-     廃止した📅カードの後継として zangaku-card の枠の中に2列で出す(リデザイン1a案の2列を流用) */
+  /* 【改修4・2026-09-06】出入りブロック。廃止した📅カードの後継として zangaku-card の枠の中に
+     2列で出す(リデザイン1a案の2列を流用)。
+     【第3版・2026-09-15】「支払いまとめカード」に再構成: 最上段に「今月支払額」(カード引き落とし
+     合計のみ・いちばん大きく)、2列は「✓ 支払い済み / → 未払い」(カードのみ)に改名 */
+  .pay-total-row { display: flex; align-items: baseline; justify-content: space-between; gap: 8px; margin-bottom: 6px; }
+  .pay-total-label { font-size: 14px; font-weight: 800; }
+  .pay-total-amt {
+    font-family: var(--font-num);
+    font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  /* 🏠手渡しの別枠行(手渡しがある月だけ)。区切りは点線=手渡し行と同じ「形」の合図(白黒でも見分けられる)。
+     含まれないことは色ではなく直下の flow-note の文字「(今月支払額には含みません)」で伝える */
+  .tew-note-row {
+    display: flex; align-items: center; justify-content: space-between; gap: 8px;
+    margin-top: 8px; padding-top: 8px;
+    border-top: 1px dashed var(--line);
+  }
+  .tew-note-amt { font-family: var(--font-num); font-size: 20px; font-weight: 700; font-variant-numeric: tabular-nums; }
   .flow2 { display: grid; grid-template-columns: 1fr 1fr; }
   .flow-cell { display: flex; flex-direction: column; gap: 2px; padding: 2px 12px 2px 0; min-width: 0; }
   .flow-cell + .flow-cell { border-left: 1px solid var(--line); padding-left: 12px; padding-right: 0; }
@@ -2514,7 +2531,7 @@
   <!-- 主役: 📥積み立てに回せる金額+口座残高の面積帯(口座残高を入れたときだけ出る) -->
   <div class="balance-card view-bal" id="balance-card" hidden></div>
 
-  <!-- 出入りブロック(✓今日までに引かれた分/→これから)+🏠借金残り -->
+  <!-- 支払いまとめカード(今月支払額+✓支払い済み/→未払い+🏠手渡し別枠行)+🏠借金残り(第3版) -->
   <div class="zangaku-card" id="zangaku-card"></div>
 
   <details class="sec" id="sec-pay"><summary id="list-head"></summary><div id="pay-list"></div></details>
@@ -2621,7 +2638,7 @@
       <p>いちばん大事な数字は📥<strong>積み立てに回せる金額</strong>です。<br>
       📥 = 手元に残る額 − 手元に残す現金 ¥3,000。手元に残る額 = 口座残高 ＋ 今月の給料 − 残高に反映されていない引き落とし − 残高を撮った日以降の🏠手渡し。<u>先月までの貯金も入れた、実際のお金</u>から計算します(口座残高を入れたときだけ出ます)。手元に残る額そのものは、下の面積帯の濃い部分に出ています。<br>
       「残高に反映されていない引き落とし」は、<strong>残高を撮った日(当日を含む)から今の期間の終わりまで</strong>に出ていくぶんの合計です。一覧で「✓済」になっているものも、残高を撮ったあとに出たものなら含まれます(まだ残高に反映されていないため)。<br>
-      帯の下には「✓ 今日までに引かれた分 / → これから引かれる分」も出ます(この期間の引き落とし＋🏠手渡しを、今日を境に分けた合計です)。</p>
+      帯の下には「<strong>今月支払額</strong>」のまとめも出ます。今月支払額は<strong>この期間のカードの引き落としの合計</strong>です(🏠手渡しは含みません)。「✓ 支払い済み」と「→ 未払い」に分かれ、足すと今月支払額になります(今日より前の日付=支払い済み、今日以降=未払い)。手渡しがある月は、すぐ下に「🏠 手渡し」の別枠で表示します(今月支払額には含みません)。過去や先の期間を見ているときは、名前が「この期間の支払額」に変わります。</p>
       <p>🏠<strong>大家さんへの手渡し</strong>は、<strong>残高を撮った日(当日を含む)以降に渡した分だけ</strong>手元に残る額から引かれます。撮った日より前に渡した分は、ATMで下ろした時点で口座残高がもう減っている(=計算の土台に反映済み)ため引きません(引くと二重引きになります)。</p>
       <p>🏠<strong>大家さんへの借金(請求残額)</strong>: 大家さんのシートの「請求残額」をAIに読ませて取り込むと、「借金残り」と「来月いくら余れば完済できるか」が出ます。シートの数字は毎日変わるので、シートを見たら入れ直してください(手渡しを書き込むと、アプリ内の借金残りも自動で減ります)。シートはAIに<strong>読み取らせるだけ</strong>で、編集はさせません。</p>
       <p>記録は自動では消えず、<strong>数年分ためられます</strong>(容量は1年で数十KB程度とごくわずか)。画面上部の「◀ ▶」で過去の月をいつでも見返せます。給料は期間ごとに記録されるので、昔の月は当時の給料で計算されます。</p>
@@ -3222,19 +3239,19 @@ function render() {
   var today = todayStr();
   var isCurrent = viewOffset === 0;
   var isPast = period.end < today;
+  // 【第3版・2026-09-15】支払額の見出し: 今回の期間=「今月支払額」、過去・先=「この期間の支払額」
+  // (◀▶で移動中に「今月」と出さない。ユーザー決定4)。まとめカードと一覧見出しの両方で使う
+  var payLabel = isCurrent ? "今月支払額" : "この期間の支払額";
   var rows = periodPayments(period);
   var total = 0, paid = 0;
   rows.forEach(function (p) {
     total += p.amount;
-    if (p.date < today) paid += p.amount; // 今日より前=済(今日当日は「これから」)
+    if (p.date < today) paid += p.amount; // 今日より前=支払い済み(今日当日は「未払い」)
   });
   var upcoming = total - paid;
-  // 🏠手渡しも「済み/これから」に含めて数える(改修4: 出入りブロックで引き落としと一緒に見せる)
-  var tewRows = periodTewatashi(period);
-  var tewPaid = 0, tewUpcoming = 0;
-  tewRows.forEach(function (t) {
-    if (t.date < today) tewPaid += t.amount; else tewUpcoming += t.amount;
-  });
+  // 【第3版・2026-09-15】✓支払い済み/→未払いは「カード引き落としだけ」で数える(ユーザー決定3)。
+  // 改修4で入れていた手渡しの合算はやめた(✓+→=今月支払額 の検算が崩れないように)。
+  // 手渡しはまとめカード内の別枠行で見せる(下の flowHtml)
 
   // この期間の給料: 今回は現在値、過去・先の期間は当時の記録(なければ今の値で代用して知らせる)
   var sal = S.salary, salNote = "";
@@ -3350,17 +3367,24 @@ function render() {
   $("period-back").innerHTML = isCurrent ? "" : '<button class="chip-btn" id="btn-period-today" type="button" style="width:100%;margin-bottom:12px">↩ 今回の期間に戻る</button>';
   if (!isCurrent) $("btn-period-today").onclick = function () { viewOffset = 0; render(); };
 
-  // 【改修4・2026-09-06】📅「今月の給料だけで見ると」カードは廃止し、代わりに
-  // 「✓今日までに引かれた分 / →これから引かれる分」の出入りブロックを出す(ユーザー要望)。
-  // 🏠手渡しも合算して見せる(内訳は下の一覧でそのまま確認できる)
+  // 【改修4・2026-09-06】📅「今月の給料だけで見ると」カードは廃止し、出入りブロックを新設。
+  // 【第3版・2026-09-15】出入りブロックを「支払いまとめカード」に再構成(計画.md 第3版 §4):
+  //   1段目「今月支払額 ¥A」= この期間のカード引き落とし合計のみ(いちばん大きく)。手渡しは含めない(ユーザー決定2)
+  //   2段目「✓ 支払い済み ¥X / → 未払い ¥Y」= カードのみ・今日基準の期間内累計。X+Y=A が必ず成り立つ
+  //   3段目 手渡しがある月だけ別枠行「🏠 手渡し ¥B」+「(今月支払額には含みません)」の文字で明示
+  //   (色や枠だけに頼らず文字で伝える。白黒表示でも誤読しない)
   var flowHtml = "";
   if (total + tewTotal > 0) {
-    var flowPaid = paid + tewPaid, flowUp = upcoming + tewUpcoming;
-    flowHtml = '<div class="flow2">'
-      + '<div class="flow-cell"><span class="f2-label">✓ 今日まで</span><span class="f2-amt">' + yen(flowPaid) + "</span></div>"
-      + '<div class="flow-cell"><span class="f2-label">→ これから</span><span class="f2-amt">' + yen(flowUp) + "</span></div>"
-      + "</div>"
-      + '<div class="flow-note">合計 ' + yen(total + tewTotal) + "(この期間の引き落とし" + (tewTotal > 0 ? "＋🏠手渡し" : "") + "・今日基準)</div>";
+    // カード0件でも手渡しがある月はカードを出す(「今月支払額 ¥0」+別枠行。手渡しが見えなくならないように)
+    flowHtml = '<div class="pay-total-row"><span class="pay-total-label">' + payLabel + '</span><span class="pay-total-amt">' + yen(total) + "</span></div>"
+      + '<div class="flow2">'
+      + '<div class="flow-cell"><span class="f2-label">✓ 支払い済み</span><span class="f2-amt">' + yen(paid) + "</span></div>"
+      + '<div class="flow-cell"><span class="f2-label">→ 未払い</span><span class="f2-amt">' + yen(upcoming) + "</span></div>"
+      + "</div>";
+    if (tewTotal > 0) {
+      flowHtml += '<div class="tew-note-row"><span class="f2-label">🏠 手渡し</span><span class="tew-note-amt">' + yen(tewTotal) + "</span></div>"
+        + '<div class="flow-note">(' + payLabel + "には含みません)</div>";
+    }
   }
   // 【改修5】🏠大家さんへの借金残り+完済の見通し(今回の期間の画面にだけ出す)。
   // 借金残り = シートの請求残額(記録日時点) − 記録日以降の手渡し。
@@ -3475,16 +3499,18 @@ function render() {
   $("balance-card").hidden = !bhtml;
   if (bhtml) $("btn-balance-edit").onclick = function () { openSettings(false); };
 
-  $("list-head").textContent = "この期間の引き落とし(" + rows.length + "件) " + yen(total);
+  // 【第3版】一覧見出しは「今月支払額(n件) ¥A」(過去・先は「この期間の支払額(n件) ¥A」)。
+  // ¥A はまとめカードの今月支払額と同じ値(カード引き落とし合計のみ)。1対1で一致させる
+  $("list-head").textContent = payLabel + "(" + rows.length + "件) " + yen(total);
   if (rows.length === 0) {
     $("pay-list").innerHTML = isCurrent
       ? '<div class="empty-note">まだ引き落としが入っていません。「📋 お願い文をコピー」を押し、カードアプリの支払予定スクショと一緒にAIへ送って、返ってきたテキストを画面いちばん下の欄に貼ってください。</div>'
-      : '<div class="empty-note">この期間の引き落とし記録はありません。</div>';
+      : '<div class="empty-note">この期間の支払いの記録はありません。</div>';
   } else {
     $("pay-list").innerHTML = rows.map(function (p) {
       var done = p.date < today;
       return '<button class="pay-row" type="button" data-id="' + esc(p.id) + '">'
-        + '<span class="pay-badge ' + (done ? "badge-done" : "badge-todo") + '">' + (done ? "✓済" : "→これから") + "</span>"
+        + '<span class="pay-badge ' + (done ? "badge-done" : "badge-todo") + '">' + (done ? "✓済" : "→未払い") + "</span>"
         + '<span class="pay-main"><span class="pay-date">' + esc(p.date) + '</span><br>'
         + '<span class="pay-card-name">' + esc(p.card) + "</span>"
         + (p.memo ? '<br><span class="pay-memo">' + esc(p.memo) + "</span>" : "")
